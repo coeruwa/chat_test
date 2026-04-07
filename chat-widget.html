@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>お問い合わせ</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: transparent;
+}
+
+/* ─── トリガーボタン ─── */
+#chat-trigger {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: #111;
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.22);
+  transition: transform .2s, box-shadow .2s;
+  z-index: 9999;
+}
+#chat-trigger:hover { transform: scale(1.07); box-shadow: 0 6px 28px rgba(0,0,0,0.28); }
+#chat-trigger .ic { transition: opacity .2s, transform .25s; }
+#chat-trigger .ic-close { position: absolute; opacity: 0; transform: rotate(-80deg) scale(.7); }
+#chat-trigger.open .ic-chat  { opacity: 0; transform: rotate(80deg) scale(.7); }
+#chat-trigger.open .ic-close { opacity: 1; transform: rotate(0deg) scale(1); }
+
+/* バッジ */
+#badge {
+  position: fixed; bottom: 68px; right: 20px;
+  background: #e74c3c; color: #fff;
+  border-radius: 50%; width: 18px; height: 18px;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10000; transition: opacity .2s, transform .2s;
+}
+#badge.hidden { opacity: 0; transform: scale(.5); pointer-events: none; }
+
+/* ─── チャットウィンドウ ─── */
+#chat-window {
+  position: fixed;
+  bottom: 92px; right: 24px;
+  width: 340px;
+  display: flex; flex-direction: column;
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.16);
+  transform: translateY(12px) scale(.97);
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s, transform .25s;
+  z-index: 9998;
+  max-height: 540px;
+}
+#chat-window.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: all; }
+
+/* ヘッダー */
+.ch {
+  background: #111; color: #fff;
+  padding: 16px 18px 13px;
+  flex-shrink: 0;
+}
+.ch-top { display: flex; align-items: center; gap: 10px; margin-bottom: 3px; }
+.av {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: #f5f0e8;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+}
+.ch h2 { font-size: 14px; font-weight: 700; }
+.ch p  { font-size: 11px; color: rgba(255,255,255,.5); margin-left: 44px; }
+.dot {
+  display: inline-block; width: 7px; height: 7px;
+  border-radius: 50%; background: #4ade80;
+  margin-right: 5px; vertical-align: middle;
+}
+
+/* メッセージ */
+#msgs {
+  flex: 1; overflow-y: auto;
+  padding: 14px 13px;
+  display: flex; flex-direction: column; gap: 9px;
+  background: #faf9f6;
+  scroll-behavior: smooth;
+}
+#msgs::-webkit-scrollbar { width: 3px; }
+#msgs::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+.msg {
+  max-width: 84%;
+  font-size: 13px; line-height: 1.6;
+  padding: 9px 13px;
+  border-radius: 14px;
+  animation: fadeUp .2s ease both;
+  white-space: pre-wrap; word-break: break-word;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg.bot  { background: #fff; color: #111; border: 1px solid #ece8e0; align-self: flex-start; border-bottom-left-radius: 4px; }
+.msg.user { background: #111; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+
+/* タイピング */
+.typing { display: flex; gap: 4px; align-items: center; padding: 3px 0; }
+.typing span {
+  width: 6px; height: 6px; border-radius: 50%; background: #bbb;
+  animation: bounce 1.1s infinite;
+}
+.typing span:nth-child(2) { animation-delay: .18s; }
+.typing span:nth-child(3) { animation-delay: .36s; }
+@keyframes bounce {
+  0%,60%,100% { transform: translateY(0); }
+  30% { transform: translateY(-5px); }
+}
+
+/* クイック返信 */
+#qr { background: #faf9f6; flex-shrink: 0; }
+.qr-wrap {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 4px 13px 12px;
+  animation: fadeUp .22s ease both;
+}
+.qr-btn {
+  background: #fff; border: 1px solid #111; color: #111;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 12px; padding: 5px 13px;
+  border-radius: 20px; cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.qr-btn:hover { background: #111; color: #fff; }
+
+/* 入力エリア */
+.cin {
+  display: flex; gap: 8px; align-items: flex-end;
+  padding: 10px 12px;
+  border-top: 1px solid #ece8e0;
+  background: #fff; flex-shrink: 0;
+}
+#inp {
+  flex: 1;
+  border: 1px solid #ddd; border-radius: 18px;
+  padding: 8px 13px;
+  font-family: 'Noto Sans JP', sans-serif; font-size: 13px;
+  outline: none; background: #faf9f6;
+  transition: border-color .15s;
+  resize: none; line-height: 1.5;
+  max-height: 80px; overflow-y: auto;
+}
+#inp:focus { border-color: #111; }
+#inp::placeholder { color: #bbb; }
+#inp:disabled { opacity: .5; }
+
+#snd {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #111; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: opacity .15s, transform .15s;
+}
+#snd:hover:not(:disabled) { opacity: .75; transform: scale(1.06); }
+#snd:disabled { opacity: .3; cursor: default; transform: none; }
+
+/* フェーズバナー */
+.phase-banner {
+  font-size: 11px; color: #888;
+  text-align: center; padding: 5px 12px 8px;
+  background: #faf9f6;
+}
+
+/* 確認カード */
+.confirm-card {
+  background: #f5f0e8;
+  border-radius: 10px;
+  padding: 10px 13px;
+  font-size: 12px; line-height: 1.8;
+  color: #333;
+  max-width: 84%;
+  align-self: flex-start;
+  animation: fadeUp .2s ease both;
+}
+.confirm-card strong { font-weight: 700; color: #111; }
+</style>
+</head>
+<body>
+
+<div id="badge">1</div>
+
+<button id="chat-trigger" aria-label="チャットを開く">
+  <svg class="ic ic-chat" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  </svg>
+  <svg class="ic ic-close" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+</button>
+
+<div id="chat-window" role="dialog" aria-label="お問い合わせチャット">
+  <div class="ch">
+    <div class="ch-top">
+      <div class="av">💬</div>
+      <h2>お問い合わせ</h2>
+    </div>
+    <p><span class="dot"></span>通常、数時間以内にメールでご返信します</p>
+  </div>
+  <div id="msgs"></div>
+  <div id="qr"></div>
+  <div class="cin">
+    <input type="text" id="inp" placeholder="メッセージを入力..." maxlength="1000" autocomplete="off" disabled />
+    <button id="snd" aria-label="送信" disabled>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"/>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </div>
+  <div class="phase-banner">Phase 1 — メール返信対応 / ゆくゆくリアルタイム化予定</div>
+</div>
+
+<script>
+// ============================================================
+//  ⚙️  設定 — ここだけ編集すればOK
+// ============================================================
+const CFG = {
+  // 1. Slack Incoming Webhook URL
+  //    取得: https://api.slack.com/apps → Incoming Webhooks → Add New Webhook
+  WEBHOOK: 'https://hooks.slack.com/services/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',
+
+  // 2. 返信用メールアドレス（Slackの通知に「このアドレスに返信してください」と表示）
+  REPLY_EMAIL: 'your@email.com',
+
+  // 3. FAQ（キー: 表示テキスト、値: ボットの回答）
+  FAQ: {
+    '料金について':   '料金プランはご要望に合わせてご提案しています。詳しくはお問い合わせください。',
+    '対応時間について': '平日 10:00〜18:00 に対応しています。それ以外はメッセージをいただければ翌営業日にご返信します。',
+    '納期について':   'プロジェクト内容によって異なります。ご要件をお聞かせいただいた上でお見積りします。',
+  },
+
+  // 4. 送信者名（Slackに表示されるBot名）
+  BOT_NAME: 'お問い合わせフォーム',
+};
+// ============================================================
+
+const msgsEl = document.getElementById('msgs');
+const qrEl   = document.getElementById('qr');
+const inp    = document.getElementById('inp');
+const snd    = document.getElementById('snd');
+const trigger= document.getElementById('chat-trigger');
+const win    = document.getElementById('chat-window');
+const badge  = document.getElementById('badge');
+
+let isOpen = false, started = false;
+let step = 0; // 0=top, 1=name, 2=email, 3=body, 4=confirm, 5=done
+let user = {};
+
+// ─── 開閉 ───
+trigger.addEventListener('click', () => {
+  isOpen = !isOpen;
+  win.classList.toggle('open', isOpen);
+  trigger.classList.toggle('open', isOpen);
+  badge.classList.add('hidden');
+  if (isOpen && !started) { started = true; setTimeout(boot, 350); }
+  if (isOpen) inp.focus();
+});
+
+// ─── 入力 ───
+inp.addEventListener('input', () => { snd.disabled = !inp.value.trim(); });
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && !snd.disabled) { e.preventDefault(); send(); }
+});
+snd.addEventListener('click', send);
+
+// ─── ユーティリティ ───
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+function addMsg(text, type = 'bot') {
+  const el = document.createElement('div');
+  el.className = `msg ${type}`;
+  el.textContent = text;
+  msgsEl.appendChild(el);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+  return el;
+}
+
+function addConfirmCard(u) {
+  const el = document.createElement('div');
+  el.className = 'confirm-card';
+  el.innerHTML = `
+    <strong>お名前：</strong>${u.name}<br>
+    <strong>メール：</strong>${u.email}<br>
+    <strong>内容：</strong>${u.body}
+  `;
+  msgsEl.appendChild(el);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+function typing() {
+  const el = document.createElement('div');
+  el.className = 'msg bot'; el.id = 'typ';
+  el.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  msgsEl.appendChild(el);
+  msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+function rmTyping() { document.getElementById('typ')?.remove(); }
+
+function showQR(opts) {
+  qrEl.innerHTML = '';
+  if (!opts.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'qr-wrap';
+  opts.forEach(o => {
+    const b = document.createElement('button');
+    b.className = 'qr-btn'; b.textContent = o;
+    b.onclick = () => { wrap.remove(); onChoice(o); };
+    wrap.appendChild(b);
+  });
+  qrEl.appendChild(wrap);
+}
+
+function enableInput() { inp.disabled = false; inp.focus(); }
+function disableInput() { inp.disabled = true; snd.disabled = true; }
+
+function isEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+
+// ─── 起動 ───
+async function boot() {
+  typing(); await wait(700); rmTyping();
+  addMsg('こんにちは！お問い合わせありがとうございます 😊');
+  await wait(500);
+  addMsg('よくあるご質問への回答か、直接メッセージをお送りいただけます。');
+  showQR([...Object.keys(CFG.FAQ), '直接メッセージを送る']);
+}
+
+// ─── クイック返信の選択 ───
+async function onChoice(choice) {
+  addMsg(choice, 'user');
+
+  if (CFG.FAQ[choice]) {
+    typing(); await wait(750); rmTyping();
+    addMsg(CFG.FAQ[choice]);
+    await wait(400);
+    addMsg('他にご質問はありますか？');
+    showQR([...Object.keys(CFG.FAQ), '直接メッセージを送る', '以上です、ありがとう！']);
+    return;
+  }
+
+  if (choice === '以上です、ありがとう！') {
+    addMsg('ご利用ありがとうございました！またいつでもどうぞ 👋');
+    return;
+  }
+
+  if (choice === '直接メッセージを送る') {
+    step = 1;
+    typing(); await wait(600); rmTyping();
+    addMsg('いくつかご入力をお願いします。');
+    await wait(300);
+    addMsg('まず、お名前を教えてください。');
+    enableInput();
+    return;
+  }
+
+  // confirm step の選択肢
+  if (choice === '送信する') { await submit(); return; }
+  if (choice === '修正する') {
+    step = 1; user = {};
+    typing(); await wait(500); rmTyping();
+    addMsg('承知しました。最初からやり直します。');
+    await wait(300);
+    addMsg('お名前を教えてください。');
+    enableInput();
+    return;
+  }
+}
+
+// ─── テキスト送信 ───
+async function send() {
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = ''; snd.disabled = true;
+  addMsg(text, 'user');
+
+  if (step === 1) {
+    user.name = text; step = 2;
+    typing(); await wait(700); rmTyping();
+    addMsg(`${user.name}さん、ありがとうございます。`);
+    await wait(200);
+    addMsg('次に、返信先のメールアドレスを教えてください。');
+    return;
+  }
+
+  if (step === 2) {
+    if (!isEmail(text)) {
+      addMsg('メールアドレスの形式が正しくないようです。もう一度ご入力ください。');
+      return;
+    }
+    user.email = text; step = 3;
+    typing(); await wait(700); rmTyping();
+    addMsg('ありがとうございます。');
+    await wait(200);
+    addMsg('お問い合わせ内容をご入力ください。');
+    return;
+  }
+
+  if (step === 3) {
+    user.body = text; step = 4;
+    disableInput();
+    typing(); await wait(700); rmTyping();
+    addMsg('以下の内容で送信してよろしいですか？');
+    await wait(200);
+    addConfirmCard(user);
+    showQR(['送信する', '修正する']);
+    return;
+  }
+}
+
+// ─── Slackへ送信 ───
+async function submit() {
+  step = 5; disableInput();
+  typing(); await wait(600);
+
+  const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+
+  const payload = {
+    username: CFG.BOT_NAME,
+    icon_emoji: ':mailbox_with_mail:',
+    blocks: [
+      {
+        type: 'header',
+        text: { type: 'plain_text', text: '📬 新しいお問い合わせが届きました', emoji: true }
+      },
+      { type: 'divider' },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*お名前*\n${user.name}` },
+          { type: 'mrkdwn', text: `*メールアドレス*\n<mailto:${user.email}|${user.email}>` },
+        ]
+      },
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*お問い合わせ内容*\n${user.body}` }
+      },
+      { type: 'divider' },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: `📧 *返信方法：* <mailto:${user.email}|${user.email}> にメールで返信してください　｜　受信日時: ${now}`
+          }
+        ]
+      },
+      // ─ Phase 2 移行ガイド（Slackのスレッドに表示）
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: `💡 _Phase 2（双方向リアルタイム化）移行後は、このスレッドから直接返信できるようになります_`
+          }
+        ]
+      }
+    ]
+  };
+
+  try {
+    await fetch(CFG.WEBHOOK, {
+      method: 'POST',
+      // mode: 'no-cors', // ← CORSエラーが出る場合はコメントアウトを外す（レスポンス確認不可になる）
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    rmTyping();
+    addMsg('送信しました！担当者よりメールにてご連絡します 📨');
+    await wait(400);
+    addMsg(`返信先：${user.email}\n通常、数時間〜1営業日以内にご連絡します。`);
+  } catch (e) {
+    rmTyping();
+    addMsg('送信中にエラーが発生しました。お手数ですが ' + CFG.REPLY_EMAIL + ' までご連絡ください。');
+    console.error('Webhook error:', e);
+  }
+}
+</script>
+</body>
+</html>
