@@ -6,14 +6,14 @@
 <title>お問い合わせ</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
- 
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
- 
+
 body {
   font-family: 'Noto Sans JP', sans-serif;
   background: transparent;
 }
- 
+
 /* ─── トリガーボタン ─── */
 #chat-trigger {
   position: fixed;
@@ -32,7 +32,7 @@ body {
 #chat-trigger .ic-close { position: absolute; opacity: 0; transform: rotate(-80deg) scale(.7); }
 #chat-trigger.open .ic-chat  { opacity: 0; transform: rotate(80deg) scale(.7); }
 #chat-trigger.open .ic-close { opacity: 1; transform: rotate(0deg) scale(1); }
- 
+
 /* バッジ */
 #badge {
   position: fixed; bottom: 68px; right: 20px;
@@ -43,7 +43,7 @@ body {
   z-index: 10000; transition: opacity .2s, transform .2s;
 }
 #badge.hidden { opacity: 0; transform: scale(.5); pointer-events: none; }
- 
+
 /* ─── チャットウィンドウ ─── */
 #chat-window {
   position: fixed;
@@ -61,7 +61,7 @@ body {
   max-height: 580px;
 }
 #chat-window.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: all; }
- 
+
 /* ヘッダー */
 .ch {
   background: #111; color: #fff;
@@ -82,7 +82,7 @@ body {
   border-radius: 50%; background: #4ade80;
   margin-right: 5px; vertical-align: middle;
 }
- 
+
 /* メッセージ */
 #msgs {
   flex: 1; overflow-y: auto;
@@ -93,7 +93,7 @@ body {
 }
 #msgs::-webkit-scrollbar { width: 3px; }
 #msgs::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
- 
+
 .msg {
   max-width: 84%;
   font-size: 13px; line-height: 1.6;
@@ -108,7 +108,7 @@ body {
 }
 .msg.bot  { background: #fff; color: #111; border: 1px solid #ece8e0; align-self: flex-start; border-bottom-left-radius: 4px; }
 .msg.user { background: #111; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
- 
+
 /* タイピング */
 .typing { display: flex; gap: 4px; align-items: center; padding: 3px 0; }
 .typing span {
@@ -121,7 +121,7 @@ body {
   0%,60%,100% { transform: translateY(0); }
   30% { transform: translateY(-5px); }
 }
- 
+
 /* クイック返信 */
 #qr { background: #faf9f6; flex-shrink: 0; }
 .qr-wrap {
@@ -138,7 +138,7 @@ body {
   white-space: nowrap;
 }
 .qr-btn:hover { background: #111; color: #fff; }
- 
+
 /* 入力エリア */
 .cin {
   display: flex; gap: 8px; align-items: flex-end;
@@ -159,7 +159,7 @@ body {
 #inp:focus { border-color: #111; }
 #inp::placeholder { color: #bbb; }
 #inp:disabled { opacity: .5; }
- 
+
 #snd {
   width: 36px; height: 36px; border-radius: 50%;
   background: #111; border: none; cursor: pointer;
@@ -169,7 +169,7 @@ body {
 }
 #snd:hover:not(:disabled) { opacity: .75; transform: scale(1.06); }
 #snd:disabled { opacity: .3; cursor: default; transform: none; }
- 
+
 /* 確認カード */
 .confirm-card {
   background: #f5f0e8;
@@ -182,7 +182,7 @@ body {
   animation: fadeUp .2s ease both;
 }
 .confirm-card strong { font-weight: 700; color: #111; }
- 
+
 /* ヒント */
 .hint {
   font-size: 11px; color: #aaa;
@@ -193,9 +193,9 @@ body {
 </style>
 </head>
 <body>
- 
+
 <div id="badge">1</div>
- 
+
 <button id="chat-trigger" aria-label="チャットを開く">
   <svg class="ic ic-chat" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -204,7 +204,7 @@ body {
     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
   </svg>
 </button>
- 
+
 <div id="chat-window" role="dialog" aria-label="お問い合わせチャット">
   <div class="ch">
     <div class="ch-top">
@@ -226,7 +226,7 @@ body {
     </button>
   </div>
 </div>
- 
+
 <script>
 // ============================================================
 //  ⚙️  設定
@@ -235,17 +235,17 @@ const CFG = {
   WEBHOOK:     'https://fancy-snowflake-ffe9.coeruwa-all.workers.dev',
   REPLY_EMAIL: 'contact@coeruwa.com',
   BOT_NAME:    'コエルワ お問い合わせ',
- 
+
   // 取り組み選択肢
   TOPICS: [
     '長期休暇事業（まなび場事業など）',
     '出前授業の実施（探究プログラムなど）',
     'コエルワのことを知りたい',
   ],
- 
+
   // 所属選択肢
   AFFILIATIONS: ['教育委員会', '自治体', '学校', '民間企業'],
- 
+
   // 知った媒体
   MEDIA: [
     '公式SNS（Instagram / X / note）',
@@ -256,7 +256,7 @@ const CFG = {
   ],
 };
 // ============================================================
- 
+
 const msgsEl = document.getElementById('msgs');
 const qrEl   = document.getElementById('qr');
 const inp    = document.getElementById('inp');
@@ -265,12 +265,12 @@ const trigger= document.getElementById('chat-trigger');
 const win    = document.getElementById('chat-window');
 const badge  = document.getElementById('badge');
 const hint   = document.getElementById('hint');
- 
+
 let isOpen = false, started = false;
 // step: 0=top, 1=name, 2=email, 3=affiliation, 4=role, 5=media, 6=media_other, 7=question, 8=confirm, 9=done
 let step = 0;
 let user = {};
- 
+
 // ─── 開閉 ───
 trigger.addEventListener('click', () => {
   isOpen = !isOpen;
@@ -280,7 +280,7 @@ trigger.addEventListener('click', () => {
   if (isOpen && !started) { started = true; setTimeout(boot, 350); }
   if (isOpen) inp.focus();
 });
- 
+
 // ─── 入力 ───
 inp.addEventListener('input', () => {
   snd.disabled = !inp.value.trim();
@@ -288,12 +288,12 @@ inp.addEventListener('input', () => {
   inp.style.height = 'auto';
   inp.style.height = Math.min(inp.scrollHeight, 80) + 'px';
 });
- 
+
 // IME変換中フラグ
 let isComposing = false;
 inp.addEventListener('compositionstart', () => { isComposing = true; });
 inp.addEventListener('compositionend', () => { isComposing = false; });
- 
+
 // Enterで送信、Shift+Enterで改行（IME変換中は送信しない）
 inp.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
@@ -302,10 +302,10 @@ inp.addEventListener('keydown', e => {
   }
 });
 snd.addEventListener('click', send);
- 
+
 // ─── ユーティリティ ───
 const wait = ms => new Promise(r => setTimeout(r, ms));
- 
+
 function addMsg(text, type = 'bot') {
   const el = document.createElement('div');
   el.className = `msg ${type}`;
@@ -314,7 +314,7 @@ function addMsg(text, type = 'bot') {
   msgsEl.scrollTop = msgsEl.scrollHeight;
   return el;
 }
- 
+
 function addConfirmCard(u) {
   const el = document.createElement('div');
   el.className = 'confirm-card';
@@ -329,7 +329,7 @@ function addConfirmCard(u) {
   msgsEl.appendChild(el);
   msgsEl.scrollTop = msgsEl.scrollHeight;
 }
- 
+
 function typing() {
   const el = document.createElement('div');
   el.className = 'msg bot'; el.id = 'typ';
@@ -338,7 +338,7 @@ function typing() {
   msgsEl.scrollTop = msgsEl.scrollHeight;
 }
 function rmTyping() { document.getElementById('typ')?.remove(); }
- 
+
 function showQR(opts) {
   qrEl.innerHTML = '';
   if (!opts.length) return;
@@ -352,7 +352,7 @@ function showQR(opts) {
   });
   qrEl.appendChild(wrap);
 }
- 
+
 function enableInput(placeholder = 'メッセージを入力...') {
   inp.disabled = false;
   inp.placeholder = placeholder;
@@ -365,9 +365,9 @@ function disableInput() {
   snd.disabled = true;
   hint.style.display = 'none';
 }
- 
+
 function isEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
- 
+
 // ─── 起動 ───
 async function boot() {
   typing(); await wait(700); rmTyping();
@@ -377,11 +377,11 @@ async function boot() {
   addMsg('ご興味のある取り組みを選んでください。');
   showQR(CFG.TOPICS);
 }
- 
+
 // ─── クイック返信の選択 ───
 async function onChoice(choice) {
   addMsg(choice, 'user');
- 
+
   // 取り組み選択
   if (CFG.TOPICS.includes(choice)) {
     user.topic = choice;
@@ -393,9 +393,9 @@ async function onChoice(choice) {
     enableInput('例：山田 太郎');
     return;
   }
- 
- 
- 
+
+
+
   // 知った媒体選択
   if (CFG.MEDIA.includes(choice)) {
     if (choice === 'その他') {
@@ -414,7 +414,7 @@ async function onChoice(choice) {
     }
     return;
   }
- 
+
   // スキップ
   if (choice === 'スキップ') {
     user.question = '';
@@ -427,7 +427,7 @@ async function onChoice(choice) {
     showQR(['送信する', '修正する']);
     return;
   }
- 
+
   // 送信・修正
   if (choice === '送信する') { await submit(); return; }
   if (choice === '修正する') {
@@ -440,7 +440,7 @@ async function onChoice(choice) {
     return;
   }
 }
- 
+
 // ─── テキスト送信 ───
 async function send() {
   const text = inp.value.trim();
@@ -449,7 +449,7 @@ async function send() {
   inp.style.height = 'auto';
   snd.disabled = true;
   addMsg(text, 'user');
- 
+
   // step1: 名前
   if (step === 1) {
     user.name = text; step = 2;
@@ -460,7 +460,7 @@ async function send() {
     enableInput('例：taro@example.com');
     return;
   }
- 
+
   // step2: メール
   if (step === 2) {
     if (!isEmail(text)) {
@@ -474,7 +474,7 @@ async function send() {
     enableInput('例：〇〇市教育委員会 指導主事');
     return;
   }
- 
+
   // step3: 所属・役職
   if (step === 3) {
     user.affiliation = text; step = 5;
@@ -484,7 +484,7 @@ async function send() {
     showQR(CFG.MEDIA);
     return;
   }
- 
+
   // step6: 媒体その他
   if (step === 6) {
     user.media = text; step = 7;
@@ -494,7 +494,7 @@ async function send() {
     showQR(['スキップ']);
     return;
   }
- 
+
   // step7: 質問・要望
   if (step === 7) {
     user.question = text; step = 8;
@@ -507,19 +507,18 @@ async function send() {
     return;
   }
 }
- 
+
 // ─── 送信 ───
 async function submit() {
   step = 9; disableInput();
   typing(); await wait(600);
- 
+
   const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
- 
+
   const payload = {
     username: CFG.BOT_NAME,
     icon_emoji: ':mailbox_with_mail:',
-
-   blocks: [
+    blocks: [
       {
         type: 'header',
         text: { type: 'plain_text', text: '📬 新しいお問い合わせが届きました', emoji: true }
@@ -546,7 +545,19 @@ async function submit() {
           { type: 'mrkdwn', text: `*ご質問・ご要望*\n${user.question || 'なし'}` },
         ]
       },
- 
+      { type: 'divider' },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: `📧 *返信先：* <mailto:${user.email}|${user.email}>　｜　受信日時: ${now}`
+          }
+        ]
+      }
+    ]
+  };
+
   try {
     await fetch(CFG.WEBHOOK, {
       method: 'POST',
@@ -566,4 +577,3 @@ async function submit() {
 </script>
 </body>
 </html>
- 
