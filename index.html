@@ -322,8 +322,7 @@ function addConfirmCard(u) {
     <strong>ご興味の取り組み：</strong>${u.topic}<br>
     <strong>お名前：</strong>${u.name}<br>
     <strong>メール：</strong>${u.email}<br>
-    <strong>所属：</strong>${u.affiliation}<br>
-    <strong>役職：</strong>${u.role}<br>
+    <strong>所属・役職：</strong>${u.affiliation}<br>
     <strong>知った媒体：</strong>${u.media}<br>
     ${u.question ? `<strong>ご質問・ご要望：</strong>${u.question}` : ''}
   `;
@@ -395,15 +394,7 @@ async function onChoice(choice) {
     return;
   }
 
-  // 所属選択
-  if (CFG.AFFILIATIONS.includes(choice)) {
-    user.affiliation = choice;
-    step = 4;
-    typing(); await wait(600); rmTyping();
-    addMsg('ありがとうございます。役職を教えてください。');
-    enableInput('例：指導主事、教育長、教諭 など');
-    return;
-  }
+
 
   // 知った媒体選択
   if (CFG.MEDIA.includes(choice)) {
@@ -478,16 +469,15 @@ async function send() {
       return;
     }
     user.email = text; step = 3;
-    disableInput();
     typing(); await wait(700); rmTyping();
-    addMsg('ありがとうございます。所属を選んでください。');
-    showQR(CFG.AFFILIATIONS);
+    addMsg('ありがとうございます。所属と役職を教えてください。');
+    enableInput('例：〇〇市教育委員会 指導主事');
     return;
   }
 
-  // step4: 役職
-  if (step === 4) {
-    user.role = text; step = 5;
+  // step3: 所属・役職
+  if (step === 3) {
+    user.affiliation = text; step = 5;
     disableInput();
     typing(); await wait(600); rmTyping();
     addMsg('コエルワのことをどこでお知りになりましたか？');
@@ -544,14 +534,7 @@ async function submit() {
       {
         type: 'section',
         fields: [
-          { type: 'mrkdwn', text: `*所属*\n${user.affiliation}` },
-          { type: 'mrkdwn', text: `*役職*\n${user.role}` },
-        ]
-      },
-      {
-        type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: `*ご興味の取り組み*\n${user.topic}` },
+          { type: 'mrkdwn', text: `*所属・役職*\n${user.affiliation}` },
           { type: 'mrkdwn', text: `*知った媒体*\n${user.media}` },
         ]
       },
