@@ -58,7 +58,7 @@ body {
   opacity: 0; pointer-events: none;
   transition: opacity .25s, transform .25s;
   z-index: 9998;
-  max-height: 540px;
+  max-height: 580px;
 }
 #chat-window.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: all; }
 
@@ -170,13 +170,6 @@ body {
 #snd:hover:not(:disabled) { opacity: .75; transform: scale(1.06); }
 #snd:disabled { opacity: .3; cursor: default; transform: none; }
 
-/* フェーズバナー */
-.phase-banner {
-  font-size: 11px; color: #888;
-  text-align: center; padding: 5px 12px 8px;
-  background: #faf9f6;
-}
-
 /* 確認カード */
 .confirm-card {
   background: #f5f0e8;
@@ -184,11 +177,19 @@ body {
   padding: 10px 13px;
   font-size: 12px; line-height: 1.8;
   color: #333;
-  max-width: 84%;
+  max-width: 90%;
   align-self: flex-start;
   animation: fadeUp .2s ease both;
 }
 .confirm-card strong { font-weight: 700; color: #111; }
+
+/* ヒント */
+.hint {
+  font-size: 11px; color: #aaa;
+  text-align: right;
+  padding: 2px 14px 6px;
+  background: #fff;
+}
 </style>
 </head>
 <body>
@@ -208,14 +209,15 @@ body {
   <div class="ch">
     <div class="ch-top">
       <div class="av">💬</div>
-      <h2>お問い合わせ</h2>
+      <h2>コエルワ お問い合わせ</h2>
     </div>
     <p><span class="dot"></span>通常、数時間以内にメールでご返信します</p>
   </div>
   <div id="msgs"></div>
   <div id="qr"></div>
+  <div class="hint" id="hint" style="display:none">Shift+Enter で改行 ／ 送信ボタンで送信</div>
   <div class="cin">
-    <input type="text" id="inp" placeholder="メッセージを入力..." maxlength="1000" autocomplete="off" disabled />
+    <textarea id="inp" placeholder="メッセージを入力..." maxlength="1000" autocomplete="off" disabled rows="1"></textarea>
     <button id="snd" aria-label="送信" disabled>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <line x1="22" y1="2" x2="11" y2="13"/>
@@ -223,30 +225,35 @@ body {
       </svg>
     </button>
   </div>
-  <div class="phase-banner">Phase 1 — メール返信対応 / ゆくゆくリアルタイム化予定</div>
 </div>
 
 <script>
 // ============================================================
-//  ⚙️  設定 — ここだけ編集すればOK
+//  ⚙️  設定
 // ============================================================
 const CFG = {
-  // 1. Slack Incoming Webhook URL
-  //    取得: https://api.slack.com/apps → Incoming Webhooks → Add New Webhook
-  WEBHOOK: 'https://fancy-snowflake-ffe9.coeruwa-all.workers.dev',
+  WEBHOOK:     'https://fancy-snowflake-ffe9.coeruwa-all.workers.dev',
+  REPLY_EMAIL: 'contact@coeruwa.com',
+  BOT_NAME:    'コエルワ お問い合わせ',
 
-  // 2. 返信用メールアドレス（Slackの通知に「このアドレスに返信してください」と表示）
-  REPLY_EMAIL: 'your@email.com',
+  // 取り組み選択肢
+  TOPICS: [
+    '長期休暇事業（まなび場事業など）',
+    '出前授業の実施（探究プログラムなど）',
+    'コエルワのことを知りたい',
+  ],
 
-  // 3. FAQ（キー: 表示テキスト、値: ボットの回答）
-  FAQ: {
-    '料金について':   '料金プランはご要望に合わせてご提案しています。詳しくはお問い合わせください。',
-    '対応時間について': '平日 10:00〜18:00 に対応しています。それ以外はメッセージをいただければ翌営業日にご返信します。',
-    '納期について':   'プロジェクト内容によって異なります。ご要件をお聞かせいただいた上でお見積りします。',
-  },
+  // 所属選択肢
+  AFFILIATIONS: ['教育委員会', '自治体', '学校', '民間企業'],
 
-  // 4. 送信者名（Slackに表示されるBot名）
-  BOT_NAME: 'お問い合わせフォーム',
+  // 知った媒体
+  MEDIA: [
+    '公式SNS（Instagram / X / note）',
+    '先端教育',
+    'PR TIMES',
+    '北海道新聞',
+    'その他',
+  ],
 };
 // ============================================================
 
@@ -257,9 +264,11 @@ const snd    = document.getElementById('snd');
 const trigger= document.getElementById('chat-trigger');
 const win    = document.getElementById('chat-window');
 const badge  = document.getElementById('badge');
+const hint   = document.getElementById('hint');
 
 let isOpen = false, started = false;
-let step = 0; // 0=top, 1=name, 2=email, 3=body, 4=confirm, 5=done
+// step: 0=top, 1=name, 2=email, 3=affiliation, 4=role, 5=media, 6=media_other, 7=question, 8=confirm, 9=done
+let step = 0;
 let user = {};
 
 // ─── 開閉 ───
@@ -273,9 +282,24 @@ trigger.addEventListener('click', () => {
 });
 
 // ─── 入力 ───
-inp.addEventListener('input', () => { snd.disabled = !inp.value.trim(); });
+inp.addEventListener('input', () => {
+  snd.disabled = !inp.value.trim();
+  // 高さ自動調整
+  inp.style.height = 'auto';
+  inp.style.height = Math.min(inp.scrollHeight, 80) + 'px';
+});
+
+// IME変換中フラグ
+let isComposing = false;
+inp.addEventListener('compositionstart', () => { isComposing = true; });
+inp.addEventListener('compositionend', () => { isComposing = false; });
+
+// Enterで送信、Shift+Enterで改行（IME変換中は送信しない）
 inp.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey && !snd.disabled) { e.preventDefault(); send(); }
+  if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
+    e.preventDefault();
+    if (!snd.disabled) send();
+  }
 });
 snd.addEventListener('click', send);
 
@@ -295,9 +319,13 @@ function addConfirmCard(u) {
   const el = document.createElement('div');
   el.className = 'confirm-card';
   el.innerHTML = `
+    <strong>ご興味の取り組み：</strong>${u.topic}<br>
     <strong>お名前：</strong>${u.name}<br>
     <strong>メール：</strong>${u.email}<br>
-    <strong>内容：</strong>${u.body}
+    <strong>所属：</strong>${u.affiliation}<br>
+    <strong>役職：</strong>${u.role}<br>
+    <strong>知った媒体：</strong>${u.media}<br>
+    ${u.question ? `<strong>ご質問・ご要望：</strong>${u.question}` : ''}
   `;
   msgsEl.appendChild(el);
   msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -326,57 +354,98 @@ function showQR(opts) {
   qrEl.appendChild(wrap);
 }
 
-function enableInput() { inp.disabled = false; inp.focus(); }
-function disableInput() { inp.disabled = true; snd.disabled = true; }
+function enableInput(placeholder = 'メッセージを入力...') {
+  inp.disabled = false;
+  inp.placeholder = placeholder;
+  inp.style.height = 'auto';
+  hint.style.display = 'block';
+  inp.focus();
+}
+function disableInput() {
+  inp.disabled = true;
+  snd.disabled = true;
+  hint.style.display = 'none';
+}
 
 function isEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 
 // ─── 起動 ───
 async function boot() {
   typing(); await wait(700); rmTyping();
-  addMsg('こんにちは！お問い合わせありがとうございます 😊');
+  addMsg('こんにちは！コエルワへのご関心ありがとうございます 😊');
   await wait(500);
-  addMsg('よくあるご質問への回答か、直接メッセージをお送りいただけます。');
-  showQR([...Object.keys(CFG.FAQ), '直接メッセージを送る']);
+  typing(); await wait(600); rmTyping();
+  addMsg('ご興味のある取り組みを選んでください。');
+  showQR(CFG.TOPICS);
 }
 
 // ─── クイック返信の選択 ───
 async function onChoice(choice) {
   addMsg(choice, 'user');
 
-  if (CFG.FAQ[choice]) {
-    typing(); await wait(750); rmTyping();
-    addMsg(CFG.FAQ[choice]);
-    await wait(400);
-    addMsg('他にご質問はありますか？');
-    showQR([...Object.keys(CFG.FAQ), '直接メッセージを送る', '以上です、ありがとう！']);
-    return;
-  }
-
-  if (choice === '以上です、ありがとう！') {
-    addMsg('ご利用ありがとうございました！またいつでもどうぞ 👋');
-    return;
-  }
-
-  if (choice === '直接メッセージを送る') {
+  // 取り組み選択
+  if (CFG.TOPICS.includes(choice)) {
+    user.topic = choice;
     step = 1;
-    typing(); await wait(600); rmTyping();
-    addMsg('いくつかご入力をお願いします。');
-    await wait(300);
+    typing(); await wait(700); rmTyping();
+    addMsg(`「${choice}」についてのお問い合わせですね。\n資料をお送りするために、いくつかご入力をお願いします。`);
+    await wait(400);
     addMsg('まず、お名前を教えてください。');
-    enableInput();
+    enableInput('例：山田 太郎');
     return;
   }
 
-  // confirm step の選択肢
+  // 所属選択
+  if (CFG.AFFILIATIONS.includes(choice)) {
+    user.affiliation = choice;
+    step = 4;
+    typing(); await wait(600); rmTyping();
+    addMsg('ありがとうございます。役職を教えてください。');
+    enableInput('例：指導主事、教育長、教諭 など');
+    return;
+  }
+
+  // 知った媒体選択
+  if (CFG.MEDIA.includes(choice)) {
+    if (choice === 'その他') {
+      user.media = '';
+      step = 6;
+      typing(); await wait(500); rmTyping();
+      addMsg('どちらでお知りになりましたか？');
+      enableInput('媒体名を入力してください');
+    } else {
+      user.media = choice;
+      step = 7;
+      typing(); await wait(600); rmTyping();
+      addMsg('ご質問やご要望があればご入力ください。（任意）\n特になければ「スキップ」を押してください。');
+      enableInput('例：詳しい料金や導入事例が知りたいです');
+      showQR(['スキップ']);
+    }
+    return;
+  }
+
+  // スキップ
+  if (choice === 'スキップ') {
+    user.question = '';
+    step = 8;
+    disableInput();
+    typing(); await wait(700); rmTyping();
+    addMsg('以下の内容で送信してよろしいですか？');
+    await wait(200);
+    addConfirmCard(user);
+    showQR(['送信する', '修正する']);
+    return;
+  }
+
+  // 送信・修正
   if (choice === '送信する') { await submit(); return; }
   if (choice === '修正する') {
-    step = 1; user = {};
+    step = 0; user = {};
     typing(); await wait(500); rmTyping();
     addMsg('承知しました。最初からやり直します。');
     await wait(300);
-    addMsg('お名前を教えてください。');
-    enableInput();
+    addMsg('ご興味のある取り組みを選んでください。');
+    showQR(CFG.TOPICS);
     return;
   }
 }
@@ -385,33 +454,60 @@ async function onChoice(choice) {
 async function send() {
   const text = inp.value.trim();
   if (!text) return;
-  inp.value = ''; snd.disabled = true;
+  inp.value = '';
+  inp.style.height = 'auto';
+  snd.disabled = true;
   addMsg(text, 'user');
 
+  // step1: 名前
   if (step === 1) {
     user.name = text; step = 2;
     typing(); await wait(700); rmTyping();
     addMsg(`${user.name}さん、ありがとうございます。`);
     await wait(200);
-    addMsg('次に、返信先のメールアドレスを教えてください。');
+    addMsg('返信先のメールアドレスを教えてください。');
+    enableInput('例：taro@example.com');
     return;
   }
 
+  // step2: メール
   if (step === 2) {
     if (!isEmail(text)) {
       addMsg('メールアドレスの形式が正しくないようです。もう一度ご入力ください。');
+      enableInput('例：taro@example.com');
       return;
     }
     user.email = text; step = 3;
+    disableInput();
     typing(); await wait(700); rmTyping();
-    addMsg('ありがとうございます。');
-    await wait(200);
-    addMsg('お問い合わせ内容をご入力ください。');
+    addMsg('ありがとうございます。所属を選んでください。');
+    showQR(CFG.AFFILIATIONS);
     return;
   }
 
-  if (step === 3) {
-    user.body = text; step = 4;
+  // step4: 役職
+  if (step === 4) {
+    user.role = text; step = 5;
+    disableInput();
+    typing(); await wait(600); rmTyping();
+    addMsg('コエルワのことをどこでお知りになりましたか？');
+    showQR(CFG.MEDIA);
+    return;
+  }
+
+  // step6: 媒体その他
+  if (step === 6) {
+    user.media = text; step = 7;
+    typing(); await wait(600); rmTyping();
+    addMsg('ご質問やご要望があればご入力ください。（任意）\n特になければ「スキップ」を押してください。');
+    enableInput('例：詳しい料金や導入事例が知りたいです');
+    showQR(['スキップ']);
+    return;
+  }
+
+  // step7: 質問・要望
+  if (step === 7) {
+    user.question = text; step = 8;
     disableInput();
     typing(); await wait(700); rmTyping();
     addMsg('以下の内容で送信してよろしいですか？');
@@ -422,9 +518,9 @@ async function send() {
   }
 }
 
-// ─── Slackへ送信 ───
+// ─── 送信 ───
 async function submit() {
-  step = 5; disableInput();
+  step = 9; disableInput();
   typing(); await wait(600);
 
   const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
@@ -447,7 +543,21 @@ async function submit() {
       },
       {
         type: 'section',
-        text: { type: 'mrkdwn', text: `*お問い合わせ内容*\n${user.body}` }
+        fields: [
+          { type: 'mrkdwn', text: `*所属*\n${user.affiliation}` },
+          { type: 'mrkdwn', text: `*役職*\n${user.role}` },
+        ]
+      },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*ご興味の取り組み*\n${user.topic}` },
+          { type: 'mrkdwn', text: `*知った媒体*\n${user.media}` },
+        ]
+      },
+      {
+        type: 'section',
+        text: { type: 'mrkdwn', text: `*ご質問・ご要望*\n${user.question || 'なし'}` }
       },
       { type: 'divider' },
       {
@@ -455,17 +565,7 @@ async function submit() {
         elements: [
           {
             type: 'mrkdwn',
-            text: `📧 *返信方法：* <mailto:${user.email}|${user.email}> にメールで返信してください　｜　受信日時: ${now}`
-          }
-        ]
-      },
-      // ─ Phase 2 移行ガイド（Slackのスレッドに表示）
-      {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: `💡 _Phase 2（双方向リアルタイム化）移行後は、このスレッドから直接返信できるようになります_`
+            text: `📧 *返信先：* <mailto:${user.email}|${user.email}>　｜　受信日時: ${now}`
           }
         ]
       }
@@ -475,7 +575,6 @@ async function submit() {
   try {
     await fetch(CFG.WEBHOOK, {
       method: 'POST',
-      // mode: 'no-cors', // ← CORSエラーが出る場合はコメントアウトを外す（レスポンス確認不可になる）
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
