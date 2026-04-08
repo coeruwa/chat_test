@@ -518,7 +518,8 @@ async function submit() {
   const payload = {
     username: CFG.BOT_NAME,
     icon_emoji: ':mailbox_with_mail:',
-    blocks: [
+
+   blocks: [
       {
         type: 'header',
         text: { type: 'plain_text', text: '📬 新しいお問い合わせが届きました', emoji: true }
@@ -531,39 +532,20 @@ async function submit() {
           { type: 'mrkdwn', text: `*メールアドレス*\n<mailto:${user.email}|${user.email}>` },
         ]
       },
-    {
-  type: 'section',
-  fields: [
-    { type: 'mrkdwn', text: `*お名前*\n${user.name}` },
-    { type: 'mrkdwn', text: `*メールアドレス*\n<mailto:${user.email}|${user.email}>` },
-  ]
-},
-{
-  type: 'section',
-  fields: [
-    { type: 'mrkdwn', text: `*ご興味の取り組み*\n${user.topic}` },
-    { type: 'mrkdwn', text: `*所属・役職*\n${user.affiliation}` },
-  ]
-},
-{
-  type: 'section',
-  fields: [
-    { type: 'mrkdwn', text: `*知った媒体*\n${user.media}` },
-    { type: 'mrkdwn', text: `*ご質問・ご要望*\n${user.question || 'なし'}` },
-  ]
-},
-      { type: 'divider' },
       {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: `📧 *返信先：* <mailto:${user.email}|${user.email}>　｜　受信日時: ${now}`
-          }
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*ご興味の取り組み*\n${user.topic}` },
+          { type: 'mrkdwn', text: `*所属・役職*\n${user.affiliation}` },
         ]
-      }
-    ]
-  };
+      },
+      {
+        type: 'section',
+        fields: [
+          { type: 'mrkdwn', text: `*知った媒体*\n${user.media}` },
+          { type: 'mrkdwn', text: `*ご質問・ご要望*\n${user.question || 'なし'}` },
+        ]
+      },
  
   try {
     await fetch(CFG.WEBHOOK, {
