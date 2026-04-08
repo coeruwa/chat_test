@@ -531,17 +531,27 @@ async function submit() {
           { type: 'mrkdwn', text: `*メールアドレス*\n<mailto:${user.email}|${user.email}>` },
         ]
       },
-      {
-        type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: `*所属・役職*\n${user.affiliation}` },
-          { type: 'mrkdwn', text: `*知った媒体*\n${user.media}` },
-        ]
-      },
-      {
-        type: 'section',
-        text: { type: 'mrkdwn', text: `*ご質問・ご要望*\n${user.question || 'なし'}` }
-      },
+    {
+  type: 'section',
+  fields: [
+    { type: 'mrkdwn', text: `*お名前*\n${user.name}` },
+    { type: 'mrkdwn', text: `*メールアドレス*\n<mailto:${user.email}|${user.email}>` },
+  ]
+},
+{
+  type: 'section',
+  fields: [
+    { type: 'mrkdwn', text: `*ご興味の取り組み*\n${user.topic}` },
+    { type: 'mrkdwn', text: `*所属・役職*\n${user.affiliation}` },
+  ]
+},
+{
+  type: 'section',
+  fields: [
+    { type: 'mrkdwn', text: `*知った媒体*\n${user.media}` },
+    { type: 'mrkdwn', text: `*ご質問・ご要望*\n${user.question || 'なし'}` },
+  ]
+},
       { type: 'divider' },
       {
         type: 'context',
