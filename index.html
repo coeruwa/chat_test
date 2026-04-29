@@ -139,6 +139,26 @@ body {
 }
 .qr-btn:hover { background: #111; color: #fff; }
 
+/* 事業ページカード */
+.page-card {
+  background: #fff;
+  border: 1px solid #ece8e0;
+  border-radius: 12px;
+  padding: 10px 13px;
+  font-size: 12px;
+  color: #111;
+  max-width: 90%;
+  align-self: flex-start;
+  animation: fadeUp .2s ease both;
+  text-decoration: none;
+  display: block;
+  transition: background .15s;
+}
+.page-card:hover { background: #f5f0e8; }
+.page-card .card-label { font-size: 10px; color: #888; margin-bottom: 3px; }
+.page-card .card-title { font-weight: 700; font-size: 13px; }
+.page-card .card-arrow { color: #888; font-size: 11px; margin-top: 3px; }
+
 /* 入力エリア */
 .cin {
   display: flex; gap: 8px; align-items: flex-end;
@@ -169,19 +189,6 @@ body {
 }
 #snd:hover:not(:disabled) { opacity: .75; transform: scale(1.06); }
 #snd:disabled { opacity: .3; cursor: default; transform: none; }
-
-/* 確認カード */
-.confirm-card {
-  background: #f5f0e8;
-  border-radius: 10px;
-  padding: 10px 13px;
-  font-size: 12px; line-height: 1.8;
-  color: #333;
-  max-width: 90%;
-  align-self: flex-start;
-  animation: fadeUp .2s ease both;
-}
-.confirm-card strong { font-weight: 700; color: #111; }
 
 /* ヒント */
 .hint {
@@ -232,27 +239,66 @@ body {
 //  ⚙️  設定
 // ============================================================
 const CFG = {
-  WEBHOOK:     'https://fancy-snowflake-ffe9.coeruwa-all.workers.dev',
-  REPLY_EMAIL: 'contact@coeruwa.com',
-  BOT_NAME:    'コエルワ お問い合わせ',
+  WEBHOOK:  'https://fancy-snowflake-ffe9.coeruwa-all.workers.dev',
+  BOT_NAME: 'コエルワ お問い合わせ',
+  HP_URL:   'https://coeruwa.com',
 
-  // 取り組み選択肢
-  TOPICS: [
-    '長期休暇事業（まなび場事業など）',
-    '出前授業の実施（探究プログラムなど）',
-    'コエルワのことを知りたい',
+  // Q1 所属種類
+  AFFILIATION_TYPES: ['企業・団体', '自治体・教育委員会', '学校'],
+
+  // Q4 ルートA 事業選択（所属別） ※事業名・URLは後日コエルワ側で差し替え
+  BUSINESSES: {
+    '企業・団体': [
+      { name: '【事業名A】企業×地域連携プログラム', url: 'https://coeruwa.com/' },
+      { name: '【事業名B】企業研修・人材育成',       url: 'https://coeruwa.com/' },
+      { name: 'その他',                              url: null },
+    ],
+    '自治体・教育委員会': [
+      { name: '【事業名C】まなび場（放課後・長期休暇支援）', url: 'https://coeruwa.com/' },
+      { name: '【事業名D】ミラスキ（探究・起業家教育）',     url: 'https://coeruwa.com/' },
+      { name: 'その他',                                      url: null },
+    ],
+    '学校': [
+      { name: '【事業名E】探究・キャリア授業プログラム', url: 'https://coeruwa.com/' },
+      { name: '【事業名F】プログラミング授業',           url: 'https://coeruwa.com/' },
+      { name: 'その他',                                  url: null },
+    ],
+  },
+
+  // Q4 ルートB 課題選択（所属別）
+  ISSUES: {
+    '企業・団体': [
+      '地域や教育との接点をつくりたいが方法がわからない',
+      '社員の研修・人材育成を充実させたい',
+      'その他',
+    ],
+    '自治体・教育委員会': [
+      '放課後や長期休暇中の子どもの居場所をつくりたい',
+      '地域の教育環境を改善したいが人手・ノウハウが足りない',
+      '企業や外部との連携を強化したい',
+      'その他',
+    ],
+    '学校': [
+      '探究・キャリア教育の授業をどう設計すればいいかわからない',
+      '外部の専門家・企業と連携した授業をやってみたい',
+      'プログラミング教育を導入したいが教員だけでは難しい',
+      'その他',
+    ],
+  },
+
+  // Q5 検討状況
+  STAGES: [
+    'まだ情報収集の段階です',
+    '具体的に検討を始めています',
+    '導入・実施に向けて動き出したい',
   ],
 
-  // 所属選択肢
-  AFFILIATIONS: ['教育委員会', '自治体', '学校', '民間企業'],
-
-  // 知った媒体
-  MEDIA: [
-    '公式SNS（Instagram / X / note）',
-    '先端教育',
-    'PR TIMES',
-    '北海道新聞',
-    'その他',
+  // Q6 今後のご希望
+  HOPES: [
+    '事業に関する資料を送っていただきたい',
+    '担当者からお話を聞いてみたい',
+    '両方希望します',
+    '特に希望はありません',
   ],
 };
 // ============================================================
@@ -267,9 +313,14 @@ const badge  = document.getElementById('badge');
 const hint   = document.getElementById('hint');
 
 let isOpen = false, started = false;
-// step: 0=top, 1=name, 2=email, 3=affiliation, 4=role, 5=media, 6=media_other, 7=question, 8=confirm, 9=done
-let step = 0;
-let user = {};
+
+// ステップ定義
+// 'q1' → 'q2' → 'q3' → ルートA/B/C分岐
+// ルートA: 'rA_q4' → 'rA_card' → 'rA_q5' → 'rA_q6' → 'rA_q7'(希望ありの場合) → 'done'
+// ルートB: 'rB_q4' → 'rB_free' → 'rB_card' → 'rA_q5' → 'rA_q6' → 'rA_q7'(希望ありの場合) → 'done'
+// ルートC: 'rC_intro' → 'rC_reselect' → ルートA/BへorD→'done'
+let step = 'q1';
+let user = { sessionId: crypto.randomUUID() };
 
 // ─── 開閉 ───
 trigger.addEventListener('click', () => {
@@ -284,17 +335,14 @@ trigger.addEventListener('click', () => {
 // ─── 入力 ───
 inp.addEventListener('input', () => {
   snd.disabled = !inp.value.trim();
-  // 高さ自動調整
   inp.style.height = 'auto';
   inp.style.height = Math.min(inp.scrollHeight, 80) + 'px';
 });
 
-// IME変換中フラグ
 let isComposing = false;
 inp.addEventListener('compositionstart', () => { isComposing = true; });
-inp.addEventListener('compositionend', () => { isComposing = false; });
+inp.addEventListener('compositionend',   () => { isComposing = false; });
 
-// Enterで送信、Shift+Enterで改行（IME変換中は送信しない）
 inp.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
     e.preventDefault();
@@ -315,16 +363,16 @@ function addMsg(text, type = 'bot') {
   return el;
 }
 
-function addConfirmCard(u) {
-  const el = document.createElement('div');
-  el.className = 'confirm-card';
+function addPageCard(business) {
+  const el = document.createElement('a');
+  el.className = 'page-card';
+  el.href = business.url || CFG.HP_URL;
+  el.target = '_blank';
+  el.rel = 'noopener noreferrer';
   el.innerHTML = `
-    <strong>ご興味の取り組み：</strong>${u.topic}<br>
-    <strong>お名前：</strong>${u.name}<br>
-    <strong>メール：</strong>${u.email}<br>
-    <strong>所属・役職：</strong>${u.affiliation}<br>
-    <strong>知った媒体：</strong>${u.media}<br>
-    ${u.question ? `<strong>ご質問・ご要望：</strong>${u.question}` : ''}
+    <div class="card-label">📄 詳細ページ</div>
+    <div class="card-title">${business.name}</div>
+    <div class="card-arrow">詳しく見る →</div>
   `;
   msgsEl.appendChild(el);
   msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -368,194 +416,29 @@ function disableInput() {
 
 function isEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 
-// ─── 起動 ───
-async function boot() {
-  typing(); await wait(700); rmTyping();
-  addMsg('こんにちは！コエルワへのご関心ありがとうございます 😊');
-  await wait(500);
-  typing(); await wait(600); rmTyping();
-  addMsg('ご興味のある取り組みを選んでください。');
-  showQR(CFG.TOPICS);
+// ユーザーの名前を取得（Q2入力から最初の単語を名前として使う）
+function getFirstName() {
+  if (!user.nameAffil) return 'あなた';
+  // 「〇〇市教育委員会 山田太郎」→ スペースで分割して後半、なければ全体
+  const parts = user.nameAffil.trim().split(/[\s　]+/);
+  return parts.length >= 2 ? parts[parts.length - 1] : parts[0];
 }
 
-// ─── クイック返信の選択 ───
-async function onChoice(choice) {
-  addMsg(choice, 'user');
-
-  // 取り組み選択
-  if (CFG.TOPICS.includes(choice)) {
-    user.topic = choice;
-    step = 1;
-    typing(); await wait(700); rmTyping();
-    addMsg(`「${choice}」についてのお問い合わせですね。\n資料をお送りするために、いくつかご入力をお願いします。`);
-    await wait(400);
-    addMsg('まず、お名前を教えてください。');
-    enableInput('例：山田 太郎');
-    return;
-  }
-
-
-
-  // 知った媒体選択
-  if (CFG.MEDIA.includes(choice)) {
-    if (choice === 'その他') {
-      user.media = '';
-      step = 6;
-      typing(); await wait(500); rmTyping();
-      addMsg('どちらでお知りになりましたか？');
-      enableInput('媒体名を入力してください');
-    } else {
-      user.media = choice;
-      step = 7;
-      typing(); await wait(600); rmTyping();
-      addMsg('ご質問やご要望があればご入力ください。（任意）\n特になければ「スキップ」を押してください。');
-      enableInput('例：詳しい料金や導入事例が知りたいです');
-      showQR(['スキップ']);
-    }
-    return;
-  }
-
-  // スキップ
-  if (choice === 'スキップ') {
-    user.question = '';
-    step = 8;
-    disableInput();
-    typing(); await wait(700); rmTyping();
-    addMsg('以下の内容で送信してよろしいですか？');
-    await wait(200);
-    addConfirmCard(user);
-    showQR(['送信する', '修正する']);
-    return;
-  }
-
-  // 送信・修正
-  if (choice === '送信する') { await submit(); return; }
-  if (choice === '修正する') {
-    step = 0; user = {};
-    typing(); await wait(500); rmTyping();
-    addMsg('承知しました。最初からやり直します。');
-    await wait(300);
-    addMsg('ご興味のある取り組みを選んでください。');
-    showQR(CFG.TOPICS);
-    return;
-  }
-}
-
-// ─── テキスト送信 ───
-async function send() {
-  const text = inp.value.trim();
-  if (!text) return;
-  inp.value = '';
-  inp.style.height = 'auto';
-  snd.disabled = true;
-  addMsg(text, 'user');
-
-  // step1: 名前
-  if (step === 1) {
-    user.name = text; step = 2;
-    typing(); await wait(700); rmTyping();
-    addMsg(`${user.name}さん、ありがとうございます。`);
-    await wait(200);
-    addMsg('返信先のメールアドレスを教えてください。');
-    enableInput('例：taro@example.com');
-    return;
-  }
-
-  // step2: メール
-  if (step === 2) {
-    if (!isEmail(text)) {
-      addMsg('メールアドレスの形式が正しくないようです。もう一度ご入力ください。');
-      enableInput('例：taro@example.com');
-      return;
-    }
-    user.email = text; step = 3;
-    typing(); await wait(700); rmTyping();
-    addMsg('ありがとうございます。所属と役職を教えてください。');
-    enableInput('例：〇〇市教育委員会 指導主事');
-    return;
-  }
-
-  // step3: 所属・役職
-  if (step === 3) {
-    user.affiliation = text; step = 5;
-    disableInput();
-    typing(); await wait(600); rmTyping();
-    addMsg('コエルワのことをどこでお知りになりましたか？');
-    showQR(CFG.MEDIA);
-    return;
-  }
-
-  // step6: 媒体その他
-  if (step === 6) {
-    user.media = text; step = 7;
-    typing(); await wait(600); rmTyping();
-    addMsg('ご質問やご要望があればご入力ください。（任意）\n特になければ「スキップ」を押してください。');
-    enableInput('例：詳しい料金や導入事例が知りたいです');
-    showQR(['スキップ']);
-    return;
-  }
-
-  // step7: 質問・要望
-  if (step === 7) {
-    user.question = text; step = 8;
-    disableInput();
-    typing(); await wait(700); rmTyping();
-    addMsg('以下の内容で送信してよろしいですか？');
-    await wait(200);
-    addConfirmCard(user);
-    showQR(['送信する', '修正する']);
-    return;
-  }
-}
-
-// ─── 送信 ───
-async function submit() {
-  step = 9; disableInput();
-  typing(); await wait(600);
-
-  const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-
+// ─── リアルタイム通知（各ステップ完了時）───
+// Workerにフラットなデータを送る。Worker側でSlack整形＆GAS送信を行う。
+async function notifySlack(label, extra = {}) {
   const payload = {
-    username: CFG.BOT_NAME,
-    icon_emoji: ':mailbox_with_mail:',
-    blocks: [
-      {
-        type: 'header',
-        text: { type: 'plain_text', text: '📬 新しいお問い合わせが届きました', emoji: true }
-      },
-      { type: 'divider' },
-      {
-        type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: `*お名前*\n${user.name}` },
-          { type: 'mrkdwn', text: `*メールアドレス*\n<mailto:${user.email}|${user.email}>` },
-        ]
-      },
-      {
-        type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: `*ご興味の取り組み*\n${user.topic}` },
-          { type: 'mrkdwn', text: `*所属・役職*\n${user.affiliation}` },
-        ]
-      },
-      {
-        type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: `*知った媒体*\n${user.media}` },
-          { type: 'mrkdwn', text: `*ご質問・ご要望*\n${user.question || 'なし'}` },
-        ]
-      },
-      { type: 'divider' },
-      {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: `📧 *返信先：* <mailto:${user.email}|${user.email}>　｜　受信日時: ${now}`
-          }
-        ]
-      }
-    ]
+    sessionId:       user.sessionId,                   // セッションID（行特定用）
+    label,                                          // 通知タイミング
+    affiliationType: user.affiliationType || '',    // 所属種類
+    nameAffil:       user.nameAffil       || '',    // 所属名・氏名
+    route:           user.route           || '',    // ルート
+    business:        extra.business       || '',    // 気になっている事業（ルートA）
+    issue:           extra.issue          || '',    // 課題選択（ルートB）
+    freeword:        extra.freeword       || '',    // フリーワード（ルートB）
+    stage:           extra.stage          || '',    // 検討状況
+    hope:            extra.hope           || '',    // 今後のご希望
+    email:           extra.email          || '',    // メールアドレス
   };
 
   try {
@@ -564,14 +447,239 @@ async function submit() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    rmTyping();
-    addMsg('送信しました！担当者よりメールにてご連絡します 📨');
-    await wait(400);
-    addMsg(`返信先：${user.email}\n通常、数時間〜1営業日以内にご連絡します。`);
   } catch (e) {
-    rmTyping();
-    addMsg('送信中にエラーが発生しました。お手数ですが ' + CFG.REPLY_EMAIL + ' までご連絡ください。');
-    console.error('Webhook error:', e);
+    console.error('通知エラー:', e);
+  }
+}
+
+// ─── 起動 ───
+async function boot() {
+  typing(); await wait(800); rmTyping();
+  addMsg('コエルワの公式サイトにお越しいただきありがとうございます。\nこのチャットでは、コエルワへのお問い合わせをサポートいたします。いくつかご質問させていただきますので、よろしければお付き合いください。');
+  await wait(600);
+  typing(); await wait(700); rmTyping();
+  addMsg('はじめに、ご所属の種類を教えていただけますか？');
+  showQR(CFG.AFFILIATION_TYPES);
+  step = 'q1';
+}
+
+// ─── ボタン選択ハンドラ ───
+async function onChoice(choice) {
+  addMsg(choice, 'user');
+
+  // ── Q1: 所属種類 ──
+  if (step === 'q1') {
+    user.affiliationType = choice;
+    step = 'q2';
+    notifySlack('Q1完了（所属種類）');
+    typing(); await wait(600); rmTyping();
+    addMsg('ありがとうございます。続いて具体的なご所属先の名称と氏名を教えてください。\n（例：〇〇市教育委員会 山田太郎）');
+    enableInput('所属先名称と氏名を入力してください');
+    return;
+  }
+
+  // ── Q3: 関心度 ──
+  if (step === 'q3') {
+    const name = getFirstName();
+    if (choice.startsWith('A.')) {
+      user.route = 'A';
+      step = 'rA_q4';
+      notifySlack('Q3完了（ルートA選択）');
+      typing(); await wait(700); rmTyping();
+      addMsg('ありがとうございます。気になっている事業・プログラムを教えていただけますか？');
+      const bizNames = CFG.BUSINESSES[user.affiliationType]?.map(b => b.name) || ['その他'];
+      showQR(bizNames);
+    } else if (choice.startsWith('B.')) {
+      user.route = 'B';
+      step = 'rB_q4';
+      notifySlack('Q3完了（ルートB選択）');
+      typing(); await wait(700); rmTyping();
+      addMsg('ありがとうございます。コエルワとの連携を考えるにあたって、現在どのようなことをお考えでしょうか？');
+      const issues = CFG.ISSUES[user.affiliationType] || ['その他'];
+      showQR(issues);
+    } else if (choice.startsWith('C.')) {
+      user.route = 'C';
+      step = 'rC_intro';
+      notifySlack('Q3完了（ルートC選択）');
+      typing(); await wait(900); rmTyping();
+      // コエルワ紹介テキスト（コエルワ側で差し替え予定）
+      addMsg('コエルワは、北海道を拠点に「子どもたちの可能性を拡げる」をミッションとして、自治体・学校・企業と連携した教育事業を展開しています。\n\n放課後・長期休暇の居場所づくり（まなび場事業）や、アントレプレナーシップ教育プログラム（ミラスキ）など、地域の教育課題に取り組んでいます。');
+      await wait(500);
+      typing(); await wait(500); rmTyping();
+      addMsg(`コエルワの公式ウェブサイトでは、各事業の詳細や実績をご覧いただけます。\nぜひあわせてご覧ください。\n🔗 ${CFG.HP_URL}`);
+      await wait(600);
+      typing(); await wait(600); rmTyping();
+      addMsg('いかがでしたでしょうか？よろしければ、引き続きお聞かせください。');
+      showQR([
+        'A. 気になっている事業・プログラムが具体的にある',
+        'B. コエルワとどんな連携ができるか知りたい',
+        'D. ありがとうございました、これで終わります',
+      ]);
+      step = 'rC_reselect';
+    }
+    return;
+  }
+
+  // ── ルートC 再選択 ──
+  if (step === 'rC_reselect') {
+    if (choice.startsWith('A.')) {
+      user.route = 'C→A';
+      step = 'rA_q4';
+      notifySlack('ルートC→A再選択');
+      typing(); await wait(700); rmTyping();
+      addMsg('ありがとうございます。気になっている事業・プログラムを教えていただけますか？');
+      const bizNames = CFG.BUSINESSES[user.affiliationType]?.map(b => b.name) || ['その他'];
+      showQR(bizNames);
+    } else if (choice.startsWith('B.')) {
+      user.route = 'C→B';
+      step = 'rB_q4';
+      notifySlack('ルートC→B再選択');
+      typing(); await wait(700); rmTyping();
+      addMsg('ありがとうございます。コエルワとの連携を考えるにあたって、現在どのようなことをお考えでしょうか？');
+      const issues = CFG.ISSUES[user.affiliationType] || ['その他'];
+      showQR(issues);
+    } else if (choice.startsWith('D.')) {
+      notifySlack('ルートC完了（D選択・終了）');
+      typing(); await wait(600); rmTyping();
+      const name = getFirstName();
+      addMsg(`${name}さん、ありがとうございました！\nまたいつでもお気軽にお問い合わせください。コエルワのウェブサイトも引き続きご覧いただけますと幸いです。`);
+      step = 'done';
+    }
+    return;
+  }
+
+  // ── ルートA: Q4 事業選択 ──
+  if (step === 'rA_q4') {
+    user.business = choice;
+    const bizObj = CFG.BUSINESSES[user.affiliationType]?.find(b => b.name === choice);
+    step = 'rA_q5';
+    notifySlack('ルートA Q4完了（事業選択）', { business: choice });
+    typing(); await wait(700); rmTyping();
+    // 事業ページカードを表示
+    if (bizObj && bizObj.url) {
+      addPageCard(bizObj);
+    }
+    await wait(300);
+    addMsg(`「${choice}」についての詳細はカードからご覧いただけます。\n現在、${choice}についてどの程度ご検討されていますか？`);
+    showQR(CFG.STAGES);
+    return;
+  }
+
+  // ── ルートB: Q4 課題選択 ──
+  if (step === 'rB_q4') {
+    user.issue = choice;
+    step = 'rB_free';
+    notifySlack('ルートB Q4完了（課題選択）', { issue: choice });
+    typing(); await wait(700); rmTyping();
+    addMsg('ありがとうございます。もう少し詳しく教えていただけますか？\nお困りのことや、気になっていること・知りたいことなど、自由にお書きください。');
+    enableInput('自由にお書きください（必須）');
+    return;
+  }
+
+  // ── Q5: 検討状況（A・B共通） ──
+  if (step === 'rA_q5') {
+    user.stage = choice;
+    step = 'rA_q6';
+    notifySlack('Q5完了（検討状況）', { business: user.business, issue: user.issue, stage: choice });
+    typing(); await wait(700); rmTyping();
+    let msg = '';
+    if (choice === 'まだ情報収集の段階です') {
+      msg = 'ありがとうございます。何かお役に立てることがあれば嬉しいです。よろしければ、今後のご希望をお聞かせいただけますか？';
+    } else if (choice === '具体的に検討を始めています') {
+      msg = 'ありがとうございます。ぜひ一緒に考えさせてください。よろしければ、今後のご希望をお聞かせいただけますか？';
+    } else {
+      msg = 'ありがとうございます。ぜひお力になりたいと思います。よろしければ、今後のご希望をお聞かせいただけますか？';
+    }
+    addMsg(msg);
+    showQR(CFG.HOPES);
+    return;
+  }
+
+  // ── Q6: 今後のご希望（A・B共通） ──
+  if (step === 'rA_q6') {
+    user.hope = choice;
+    if (choice === '特に希望はありません') {
+      // メール不要→完了
+      notifySlack('Q6完了・完了（希望なし）', { stage: user.stage, hope: choice });
+      step = 'done';
+      typing(); await wait(700); rmTyping();
+      const name = getFirstName();
+      addMsg(`${name}さん、ありがとうございました！\nまたいつでもお気軽にお問い合わせください。コエルワのウェブサイトも引き続きご覧いただけますと幸いです。`);
+    } else {
+      // メールアドレスを聞く
+      step = 'rA_q7';
+      notifySlack('Q6完了（ご希望あり）', { stage: user.stage, hope: choice });
+      typing(); await wait(700); rmTyping();
+      addMsg('ありがとうございます。ご連絡先のメールアドレスを教えていただけますか？');
+      enableInput('例：taro@example.com');
+    }
+    return;
+  }
+}
+
+// ─── テキスト送信ハンドラ ───
+async function send() {
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  inp.style.height = 'auto';
+  snd.disabled = true;
+  addMsg(text, 'user');
+
+  // ── Q2: 所属名・氏名 ──
+  if (step === 'q2') {
+    user.nameAffil = text;
+    step = 'q3';
+    notifySlack('Q2完了（所属名・氏名）');
+    disableInput();
+    const name = getFirstName();
+    typing(); await wait(700); rmTyping();
+    addMsg(`${name}さん、ありがとうございます。\nコエルワの事業について、現時点でどの程度ご存知でしょうか？`);
+    showQR([
+      'A. 気になっている事業・プログラムが具体的にある',
+      'B. 詳しくはわからないが、一緒にできることを探したい',
+      'C. コエルワの事業をまだよく知らないので、まず知りたい',
+    ]);
+    return;
+  }
+
+  // ── ルートB: フリーワード入力 ──
+  if (step === 'rB_free') {
+    user.freeword = text;
+    step = 'rA_q5'; // Q5へ（B・A共通）
+    notifySlack('ルートB フリーワード完了', { issue: user.issue, freeword: text });
+    disableInput();
+    typing(); await wait(800); rmTyping();
+    // TODO: 課題×事業対応表に基づく事業カード表示（現在はプレースホルダー）
+    addMsg('ありがとうございます。コエルワでは、いただいた内容に対応した事業に取り組んでいます。\n担当者より詳しいご案内をお送りします。');
+    await wait(400);
+    addMsg('現在、どの程度ご検討されていますか？');
+    showQR(CFG.STAGES);
+    return;
+  }
+
+  // ── Q7: メールアドレス ──
+  if (step === 'rA_q7') {
+    if (!isEmail(text)) {
+      addMsg('メールアドレスの形式が正しくないようです。もう一度ご入力ください。');
+      enableInput('例：taro@example.com');
+      return;
+    }
+    user.email = text;
+    step = 'done';
+    disableInput();
+    notifySlack('完了（メールアドレス取得）', {
+      business:  user.business,
+      issue:     user.issue,
+      freeword:  user.freeword,
+      stage:     user.stage,
+      hope:      user.hope,
+      email:     text,
+    });
+    typing(); await wait(700); rmTyping();
+    const name = getFirstName();
+    addMsg(`${name}さん、ありがとうございました！\nご入力いただいた内容を確認のうえ、担当者より順次ご連絡いたします。引き続きコエルワのウェブサイトもぜひご覧ください。`);
+    return;
   }
 }
 </script>
