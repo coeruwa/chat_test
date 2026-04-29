@@ -424,32 +424,33 @@ function getFirstName() {
   return parts.length >= 2 ? parts[parts.length - 1] : parts[0];
 }
 
-// ─── リアルタイム通知（各ステップ完了時）───
-// Workerにフラットなデータを送る。Worker側でSlack整形＆GAS送信を行う。
-async function notifySlack(label, extra = {}) {
+// ─── 通知・記録（各ステップ完了時）───
+// notifySlack → Slack通知 + GAS記録
+// recordOnly  → GAS記録のみ（Slack通知なし）
+async function notifySlack(label, extra = {}) { await _send(label, extra, true); }
+async function recordOnly(label, extra = {})  { await _send(label, extra, false); }
+async function _send(label, extra, notifyToSlack) {
   const payload = {
-    sessionId:       user.sessionId,                   // セッションID（行特定用）
-    label,                                          // 通知タイミング
-    affiliationType: user.affiliationType || '',    // 所属種類
-    nameAffil:       user.nameAffil       || '',    // 所属名・氏名
-    route:           user.route           || '',    // ルート
-    business:        extra.business       || '',    // 気になっている事業（ルートA）
-    issue:           extra.issue          || '',    // 課題選択（ルートB）
-    freeword:        extra.freeword       || '',    // フリーワード（ルートB）
-    stage:           extra.stage          || '',    // 検討状況
-    hope:            extra.hope           || '',    // 今後のご希望
-    email:           extra.email          || '',    // メールアドレス
+    sessionId:       user.sessionId,
+    label,
+    notifyToSlack,
+    affiliationType: user.affiliationType || '',
+    nameAffil:       user.nameAffil       || '',
+    route:           user.route           || '',
+    business:        extra.business       || '',
+    issue:           extra.issue          || '',
+    freeword:        extra.freeword       || '',
+    stage:           extra.stage          || '',
+    hope:            extra.hope           || '',
+    email:           extra.email          || '',
   };
-
   try {
     await fetch(CFG.WEBHOOK, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-  } catch (e) {
-    console.error('通知エラー:', e);
-  }
+  } catch (e) { console.error('通知エラー:', e); }
 }
 
 // ─── 起動 ───
@@ -471,7 +472,7 @@ async function onChoice(choice) {
   if (step === 'q1') {
     user.affiliationType = choice;
     step = 'q2';
-    notifySlack('Q1完了（所属種類）');
+    recordOnly('Q1完了（所属種類）');
     typing(); await wait(600); rmTyping();
     addMsg('ありがとうございます。続いて具体的なご所属先の名称と氏名を教えてください。\n（例：〇〇市教育委員会 山田太郎）');
     enableInput('所属先名称と氏名を入力してください');
@@ -484,7 +485,7 @@ async function onChoice(choice) {
     if (choice.startsWith('A.')) {
       user.route = 'A';
       step = 'rA_q4';
-      notifySlack('Q3完了（ルートA選択）');
+      recordOnly('Q3完了（ルートA選択）');
       typing(); await wait(700); rmTyping();
       addMsg('ありがとうございます。気になっている事業・プログラムを教えていただけますか？');
       const bizNames = CFG.BUSINESSES[user.affiliationType]?.map(b => b.name) || ['その他'];
@@ -492,7 +493,7 @@ async function onChoice(choice) {
     } else if (choice.startsWith('B.')) {
       user.route = 'B';
       step = 'rB_q4';
-      notifySlack('Q3完了（ルートB選択）');
+      recordOnly('Q3完了（ルートB選択）');
       typing(); await wait(700); rmTyping();
       addMsg('ありがとうございます。コエルワとの連携を考えるにあたって、現在どのようなことをお考えでしょうか？');
       const issues = CFG.ISSUES[user.affiliationType] || ['その他'];
@@ -500,7 +501,7 @@ async function onChoice(choice) {
     } else if (choice.startsWith('C.')) {
       user.route = 'C';
       step = 'rC_intro';
-      notifySlack('Q3完了（ルートC選択）');
+      recordOnly('Q3完了（ルートC選択）');
       typing(); await wait(900); rmTyping();
       // コエルワ紹介テキスト（コエルワ側で差し替え予定）
       addMsg('コエルワは、北海道を拠点に「子どもたちの可能性を拡げる」をミッションとして、自治体・学校・企業と連携した教育事業を展開しています。\n\n放課後・長期休暇の居場所づくり（まなび場事業）や、アントレプレナーシップ教育プログラム（ミラスキ）など、地域の教育課題に取り組んでいます。');
@@ -525,7 +526,7 @@ async function onChoice(choice) {
     if (choice.startsWith('A.')) {
       user.route = 'C→A';
       step = 'rA_q4';
-      notifySlack('ルートC→A再選択');
+      recordOnly('ルートC→A再選択');
       typing(); await wait(700); rmTyping();
       addMsg('ありがとうございます。気になっている事業・プログラムを教えていただけますか？');
       const bizNames = CFG.BUSINESSES[user.affiliationType]?.map(b => b.name) || ['その他'];
@@ -533,7 +534,7 @@ async function onChoice(choice) {
     } else if (choice.startsWith('B.')) {
       user.route = 'C→B';
       step = 'rB_q4';
-      notifySlack('ルートC→B再選択');
+      recordOnly('ルートC→B再選択');
       typing(); await wait(700); rmTyping();
       addMsg('ありがとうございます。コエルワとの連携を考えるにあたって、現在どのようなことをお考えでしょうか？');
       const issues = CFG.ISSUES[user.affiliationType] || ['その他'];
@@ -553,7 +554,7 @@ async function onChoice(choice) {
     user.business = choice;
     const bizObj = CFG.BUSINESSES[user.affiliationType]?.find(b => b.name === choice);
     step = 'rA_q5';
-    notifySlack('ルートA Q4完了（事業選択）', { business: choice });
+    recordOnly('ルートA Q4完了（事業選択）', { business: choice });
     typing(); await wait(700); rmTyping();
     // 事業ページカードを表示
     if (bizObj && bizObj.url) {
@@ -569,7 +570,7 @@ async function onChoice(choice) {
   if (step === 'rB_q4') {
     user.issue = choice;
     step = 'rB_free';
-    notifySlack('ルートB Q4完了（課題選択）', { issue: choice });
+    recordOnly('ルートB Q4完了（課題選択）', { issue: choice });
     typing(); await wait(700); rmTyping();
     addMsg('ありがとうございます。もう少し詳しく教えていただけますか？\nお困りのことや、気になっていること・知りたいことなど、自由にお書きください。');
     enableInput('自由にお書きください（必須）');
@@ -580,7 +581,7 @@ async function onChoice(choice) {
   if (step === 'rA_q5') {
     user.stage = choice;
     step = 'rA_q6';
-    notifySlack('Q5完了（検討状況）', { business: user.business, issue: user.issue, stage: choice });
+    recordOnly('Q5完了（検討状況）', { business: user.business, issue: user.issue, stage: choice });
     typing(); await wait(700); rmTyping();
     let msg = '';
     if (choice === 'まだ情報収集の段階です') {
@@ -608,7 +609,7 @@ async function onChoice(choice) {
     } else {
       // メールアドレスを聞く
       step = 'rA_q7';
-      notifySlack('Q6完了（ご希望あり）', { stage: user.stage, hope: choice });
+      recordOnly('Q6完了（ご希望あり）', { stage: user.stage, hope: choice });
       typing(); await wait(700); rmTyping();
       addMsg('ありがとうございます。ご連絡先のメールアドレスを教えていただけますか？');
       enableInput('例：taro@example.com');
@@ -647,7 +648,7 @@ async function send() {
   if (step === 'rB_free') {
     user.freeword = text;
     step = 'rA_q5'; // Q5へ（B・A共通）
-    notifySlack('ルートB フリーワード完了', { issue: user.issue, freeword: text });
+    recordOnly('ルートB フリーワード完了', { issue: user.issue, freeword: text });
     disableInput();
     typing(); await wait(800); rmTyping();
     // TODO: 課題×事業対応表に基づく事業カード表示（現在はプレースホルダー）
