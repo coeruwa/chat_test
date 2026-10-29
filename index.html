@@ -218,7 +218,7 @@ body {
       <div class="av">💬</div>
       <h2>コエルワ お問い合わせ</h2>
     </div>
-    <p><span class="dot"></span>通常、数時間以内にメールでご返信します</p>
+    <p><span class="dot"></span>担当者より、営業日内にメールでご返信します</p>
   </div>
   <div id="msgs"></div>
   <div id="qr"></div>
@@ -246,42 +246,53 @@ const CFG = {
   // Q1 所属種類
   AFFILIATION_TYPES: ['企業・団体', '自治体・教育委員会', '学校'],
 
-  // Q4 ルートA 事業選択（所属別） ※事業名・URLは後日コエルワ側で差し替え
+  // Q4 ルートA 事業選択（所属別）
+  //   url に事業ページのURLを入れるとカードが出る（null のときはカードなし）
   BUSINESSES: {
     '企業・団体': [
-      { name: '【事業名A】企業×地域連携プログラム', url: 'https://coeruwa.com/' },
-      { name: '【事業名B】企業研修・人材育成',       url: 'https://coeruwa.com/' },
-      { name: 'その他',                              url: null },
+      { name: '企業向け研修・合宿設計', url: null },
+      { name: '講演・講義',             url: null },
+      { name: 'ミラスキ',               url: null },
+      { name: 'その他',                 url: null },
     ],
     '自治体・教育委員会': [
-      { name: '【事業名C】まなび場（放課後・長期休暇支援）', url: 'https://coeruwa.com/' },
-      { name: '【事業名D】ミラスキ（探究・起業家教育）',     url: 'https://coeruwa.com/' },
-      { name: 'その他',                                      url: null },
+      { name: 'まなび場',                       url: null },
+      { name: '放課後支援',                     url: null },
+      { name: '学校・自治体向け研修',           url: null },
+      { name: '次世代教育コーディネート事業',   url: null },
+      { name: 'こどもの意見反映推進事業',       url: null },
+      { name: 'その他',                         url: null },
     ],
     '学校': [
-      { name: '【事業名E】探究・キャリア授業プログラム', url: 'https://coeruwa.com/' },
-      { name: '【事業名F】プログラミング授業',           url: 'https://coeruwa.com/' },
-      { name: 'その他',                                  url: null },
+      { name: '探究サポート',                   url: null },
+      { name: '学校向け起業家育成事業',         url: null },
+      { name: 'ミラスキ',                       url: null },
+      { name: '講演・出前授業',                 url: null },
+      { name: '次世代教育コーディネート事業',   url: null },
+      { name: 'こどもの意見反映推進事業',       url: null },
+      { name: 'その他',                         url: null },
     ],
   },
 
   // Q4 ルートB 課題選択（所属別）
   ISSUES: {
     '企業・団体': [
-      '地域や教育との接点をつくりたいが方法がわからない',
+      '地域や教育との接点をつくりたいが、方法がわからない',
       '社員の研修・人材育成を充実させたい',
+      '講演・登壇を依頼したい',
+      '高校生の起業家教育に関わりたい',
       'その他',
     ],
     '自治体・教育委員会': [
-      '放課後や長期休暇中の子どもの居場所をつくりたい',
-      '地域の教育環境を改善したいが人手・ノウハウが足りない',
-      '企業や外部との連携を強化したい',
+      '子どもが地域の外の大人や大学生と出会う機会をつくりたい',
+      '学習塾が少なく、子どもの学習環境に課題がある',
+      '地域の教育環境を改善したいが、人手・ノウハウが足りない',
       'その他',
     ],
     '学校': [
       '探究・キャリア教育の授業をどう設計すればいいかわからない',
       '外部の専門家・企業と連携した授業をやってみたい',
-      'プログラミング教育を導入したいが教員だけでは難しい',
+      '起業家教育・アントレプレナーシップ教育を取り入れたい',
       'その他',
     ],
   },
@@ -295,11 +306,13 @@ const CFG = {
 
   // Q6 今後のご希望
   HOPES: [
-    '事業に関する資料を送っていただきたい',
-    '担当者からお話を聞いてみたい',
-    '両方希望します',
+    '担当者から話を聞いてみたい',
+    'まずは資料（アニュアルレポート）を受け取りたい',
     '特に希望はありません',
   ],
+
+  // メールなしで終わるボタン
+  SKIP_EMAIL: 'メールなしで終わる',
 };
 // ============================================================
 
@@ -318,7 +331,8 @@ let isOpen = false, started = false;
 // 'q1' → 'q2' → 'q3' → ルートA/B/C分岐
 // ルートA: 'rA_q4' → 'rA_card' → 'rA_q5' → 'rA_q6' → 'rA_q7'(希望ありの場合) → 'done'
 // ルートB: 'rB_q4' → 'rB_free' → 'rB_card' → 'rA_q5' → 'rA_q6' → 'rA_q7'(希望ありの場合) → 'done'
-// ルートC: 'rC_intro' → 'rC_reselect' → ルートA/BへorD→'done'
+// ルートC: 'rC_intro' → 'rC_reselect' → ルートA/BへorD→'opt_email'
+// 'opt_email'：希望なし・ルートC終了の人に、アニュアル送付を案内してメールを任意で聞く
 let step = 'q1';
 let user = { sessionId: crypto.randomUUID() };
 
@@ -416,12 +430,10 @@ function disableInput() {
 
 function isEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 
-// ユーザーの名前を取得（Q2入力から最初の単語を名前として使う）
+// 呼びかけ用の名前（入力された所属名・氏名をそのまま使い「様」をつける）
 function getFirstName() {
-  if (!user.nameAffil) return 'あなた';
-  // 「〇〇市教育委員会 山田太郎」→ スペースで分割して後半、なければ全体
-  const parts = user.nameAffil.trim().split(/[\s　]+/);
-  return parts.length >= 2 ? parts[parts.length - 1] : parts[0];
+  if (!user.nameAffil) return 'ご担当者';
+  return user.nameAffil.trim().replace(/[\s　]*(様|さま|さん)$/, '');
 }
 
 // ─── 通知・記録（各ステップ完了時）───
@@ -451,6 +463,16 @@ async function _send(label, extra, notifyToSlack) {
       body: JSON.stringify(payload),
     });
   } catch (e) { console.error('通知エラー:', e); }
+}
+
+// ─── 任意のメールアドレス（希望なし・ルートC終了）───
+async function askOptionalEmail(endLabel) {
+  user.endLabel = endLabel;
+  step = 'opt_email';
+  typing(); await wait(700); rmTyping();
+  addMsg('ありがとうございます。\nコエルワの活動をまとめたアニュアルレポートをお送りいたしますので、よろしければメールアドレスを教えてください。');
+  enableInput('例：taro@example.com');
+  showQR([CFG.SKIP_EMAIL]);
 }
 
 // ─── 起動 ───
@@ -504,7 +526,7 @@ async function onChoice(choice) {
       recordOnly('Q3完了（ルートC選択）');
       typing(); await wait(900); rmTyping();
       // コエルワ紹介テキスト（コエルワ側で差し替え予定）
-      addMsg('コエルワは、北海道を拠点に「子どもたちの可能性を拡げる」をミッションとして、自治体・学校・企業と連携した教育事業を展開しています。\n\n放課後・長期休暇の居場所づくり（まなび場事業）や、アントレプレナーシップ教育プログラム（ミラスキ）など、地域の教育課題に取り組んでいます。');
+      addMsg('コエルワは、北海道を拠点に教育事業を行う会社です。\n\nミッションは「自分と社会の距離感を変える。」\n「自分には関係ない」と思っていた社会の選択肢が、「自分にもできるかもしれない」に変わる。そんな体験を、自治体・学校・企業のみなさまと一緒につくっています。\n\n「場」「学び」「挑戦」「まち」「組織」の5つをつくる事業として、まなび場、探究サポート、ミラスキ、企業研修などに取り組んでいます。');
       await wait(500);
       typing(); await wait(500); rmTyping();
       addMsg(`コエルワの公式ウェブサイトでは、各事業の詳細や実績をご覧いただけます。\nぜひあわせてご覧ください。\n🔗 ${CFG.HP_URL}`);
@@ -513,7 +535,7 @@ async function onChoice(choice) {
       addMsg('いかがでしたでしょうか？よろしければ、引き続きお聞かせください。');
       showQR([
         'A. 気になっている事業・プログラムが具体的にある',
-        'B. コエルワとどんな連携ができるか知りたい',
+        'B. 詳しくはわからないが、一緒にできることを探したい',
         'D. ありがとうございました、これで終わります',
       ]);
       step = 'rC_reselect';
@@ -540,11 +562,8 @@ async function onChoice(choice) {
       const issues = CFG.ISSUES[user.affiliationType] || ['その他'];
       showQR(issues);
     } else if (choice.startsWith('D.')) {
-      notifySlack('ルートC完了（D選択・終了）');
-      typing(); await wait(600); rmTyping();
-      const name = getFirstName();
-      addMsg(`${name}さん、ありがとうございました！\nまたいつでもお気軽にお問い合わせください。コエルワのウェブサイトも引き続きご覧いただけますと幸いです。`);
-      step = 'done';
+      recordOnly('ルートC D選択');
+      await askOptionalEmail('ルートC完了（D選択・終了）');
     }
     return;
   }
@@ -561,7 +580,13 @@ async function onChoice(choice) {
       addPageCard(bizObj);
     }
     await wait(300);
-    addMsg(`「${choice}」についての詳細はカードからご覧いただけます。\n現在、${choice}についてどの程度ご検討されていますか？`);
+    if (bizObj && bizObj.url) {
+      addMsg(`「${choice}」の詳細はカードからご覧いただけます。\n現在、どの程度ご検討されていますか？`);
+    } else if (choice === 'その他') {
+      addMsg('ありがとうございます。現在、どの程度ご検討されていますか？');
+    } else {
+      addMsg(`ありがとうございます。現在、${choice}についてどの程度ご検討されていますか？`);
+    }
     showQR(CFG.STAGES);
     return;
   }
@@ -596,22 +621,30 @@ async function onChoice(choice) {
     return;
   }
 
+  // ── 任意メール：メールなしで終わる ──
+  if (step === 'opt_email' && choice === CFG.SKIP_EMAIL) {
+    step = 'done';
+    disableInput();
+    notifySlack(user.endLabel, { stage: user.stage, hope: user.hope });
+    typing(); await wait(600); rmTyping();
+    const name = getFirstName();
+    addMsg(`${name}様、ありがとうございました。\nまたいつでもお気軽にお問い合わせください。コエルワのウェブサイトも引き続きご覧いただけますと幸いです。`);
+    return;
+  }
+
   // ── Q6: 今後のご希望（A・B共通） ──
   if (step === 'rA_q6') {
     user.hope = choice;
     if (choice === '特に希望はありません') {
-      // メール不要→完了
-      notifySlack('Q6完了・完了（希望なし）', { stage: user.stage, hope: choice });
-      step = 'done';
-      typing(); await wait(700); rmTyping();
-      const name = getFirstName();
-      addMsg(`${name}さん、ありがとうございました！\nまたいつでもお気軽にお問い合わせください。コエルワのウェブサイトも引き続きご覧いただけますと幸いです。`);
+      // アニュアル送付を案内し、メールは任意で聞く
+      recordOnly('Q6完了（希望なし）', { stage: user.stage, hope: choice });
+      await askOptionalEmail('Q6完了・完了（希望なし）');
     } else {
       // メールアドレスを聞く
       step = 'rA_q7';
       recordOnly('Q6完了（ご希望あり）', { stage: user.stage, hope: choice });
       typing(); await wait(700); rmTyping();
-      addMsg('ありがとうございます。ご連絡先のメールアドレスを教えていただけますか？');
+      addMsg('ありがとうございます。ご連絡先のメールアドレスを教えていただけますか？\n（コエルワの活動をまとめたアニュアルレポートもあわせてお送りいたします）');
       enableInput('例：taro@example.com');
     }
     return;
@@ -631,11 +664,11 @@ async function send() {
   if (step === 'q2') {
     user.nameAffil = text;
     step = 'q3';
-    notifySlack('Q2完了（所属名・氏名）');
+    recordOnly('Q2完了（所属名・氏名）'); // Slack通知は完了時の1回のみ
     disableInput();
     const name = getFirstName();
     typing(); await wait(700); rmTyping();
-    addMsg(`${name}さん、ありがとうございます。\nコエルワの事業について、現時点でどの程度ご存知でしょうか？`);
+    addMsg(`${name}様、ありがとうございます。\nコエルワへのご関心に近いものをお選びください。`);
     showQR([
       'A. 気になっている事業・プログラムが具体的にある',
       'B. 詳しくはわからないが、一緒にできることを探したい',
@@ -652,10 +685,32 @@ async function send() {
     disableInput();
     typing(); await wait(800); rmTyping();
     // TODO: 課題×事業対応表に基づく事業カード表示（現在はプレースホルダー）
-    addMsg('ありがとうございます。コエルワでは、いただいた内容に対応した事業に取り組んでいます。\n担当者より詳しいご案内をお送りします。');
+    addMsg('ありがとうございます。いただいた内容は、担当者が確認いたします。');
     await wait(400);
     addMsg('現在、どの程度ご検討されていますか？');
     showQR(CFG.STAGES);
+    return;
+  }
+
+  // ── 任意メール：入力されたとき ──
+  if (step === 'opt_email') {
+    if (!isEmail(text)) {
+      addMsg('メールアドレスの形式が正しくないようです。もう一度ご入力いただくか、「メールなしで終わる」を押してください。');
+      enableInput('例：taro@example.com');
+      showQR([CFG.SKIP_EMAIL]);
+      return;
+    }
+    user.email = text;
+    step = 'done';
+    qrEl.innerHTML = '';
+    disableInput();
+    notifySlack('完了（メールアドレス取得）', {
+      business: user.business, issue: user.issue, freeword: user.freeword,
+      stage: user.stage, hope: user.hope, email: text,
+    });
+    typing(); await wait(700); rmTyping();
+    const name = getFirstName();
+    addMsg(`${name}様、ありがとうございました。\nご入力いただいたメールアドレスに、アニュアルレポートをお送りいたします。またいつでもお気軽にお問い合わせください。`);
     return;
   }
 
@@ -679,7 +734,7 @@ async function send() {
     });
     typing(); await wait(700); rmTyping();
     const name = getFirstName();
-    addMsg(`${name}さん、ありがとうございました！\nご入力いただいた内容を確認のうえ、担当者より順次ご連絡いたします。引き続きコエルワのウェブサイトもぜひご覧ください。`);
+    addMsg(`${name}様、ありがとうございました。\nご入力いただいた内容を確認のうえ、担当者より順次ご連絡いたします。引き続きコエルワのウェブサイトもぜひご覧ください。`);
     return;
   }
 }
