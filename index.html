@@ -218,7 +218,7 @@ body {
       <div class="av">💬</div>
       <h2>コエルワ お問い合わせ</h2>
     </div>
-    <p><span class="dot"></span>担当者より、営業日内にメールでご返信します</p>
+    <p><span class="dot"></span>いくつかの質問にお答えいただくと、ご案内します</p>
   </div>
   <div id="msgs"></div>
   <div id="qr"></div>
@@ -313,6 +313,27 @@ const CFG = {
 
   // メールなしで終わるボタン
   SKIP_EMAIL: 'メールなしで終わる',
+
+  // よくある質問（Q3・ルートCのあとに「よくある質問を見る」として出る）
+  //   ※回答文は仮。営業チームの確認後に差し替える（費用・日程など確定していないことは書かない）
+  FAQ_OPTION: 'F. よくある質問を見る',
+  FAQ: [
+    { q: '費用はどのくらいかかりますか？',
+      a: '費用は、実施する内容・期間・人数によって異なります。\nご状況をうかがったうえで、担当者からお見積もりをご案内いたします。' },
+    { q: 'どんな人・地域が対象ですか？',
+      a: '小学生から高校生、大学生、教員の方、企業の方まで、事業によって対象はさまざまです。\n北海道を中心に、自治体・学校・企業のみなさまと取り組んでいます。' },
+    { q: '実施の時期や期間は？',
+      a: '夏休み・冬休みなどの長期休みに数日間行うもの、授業の1コマで行うもの、通年で行うものなど、事業によって異なります。\nご希望の時期に合わせてご相談ください。' },
+    { q: '申し込みから実施までの流れは？',
+      a: 'まずはこのチャットやメールでご相談ください。担当者がご状況をうかがい、内容とお見積もりをご提案します。\n内容が決まったら、準備を進めて実施します。' },
+    { q: 'これまでの実績を知りたい',
+      a: '各地での実施の様子は、公式サイトや活動レポートでご覧いただけます。\nアニュアルレポートもお送りできますので、よろしければご希望ください。' },
+  ],
+
+  // AI回答（テスト用）：ページを「?aitest=1」付きで開いたときだけ、質問を自由に入力する選択肢が出る
+  //   STUDIOの複製ページでは iframe の src に ?aitest=1 を付ける。本番のHPには付けない
+  AI_TEST: new URLSearchParams(location.search).get('aitest') === '1',
+  AI_OPTION: 'E. 質問を自由に入力して聞いてみたい（テスト中）',
 };
 // ============================================================
 
@@ -334,7 +355,12 @@ let isOpen = false, started = false;
 // ルートC: 'rC_intro' → 'rC_reselect' → ルートA/BへorD→'opt_email'
 // 'opt_email'：希望なし・ルートC終了の人に、アニュアル送付を案内してメールを任意で聞く
 let step = 'q1';
-let user = { sessionId: crypto.randomUUID() };
+let user = { sessionId: crypto.randomUUID(), guided: [] };
+
+// ボットが案内した内容を記録（Slack通知・記録シートに載せる）
+function addGuided(text) {
+  if (!user.guided.includes(text)) user.guided.push(text);
+}
 
 // ─── 開閉 ───
 trigger.addEventListener('click', () => {
@@ -384,9 +410,9 @@ function addPageCard(business) {
   el.target = '_blank';
   el.rel = 'noopener noreferrer';
   el.innerHTML = `
-    <div class="card-label">📄 詳細ページ</div>
+    <div class="card-label">📄 ${business.url ? '詳細ページ' : '公式サイト'}</div>
     <div class="card-title">${business.name}</div>
-    <div class="card-arrow">詳しく見る →</div>
+    <div class="card-arrow">${business.url ? '詳しく見る' : '公式サイトで見る'} →</div>
   `;
   msgsEl.appendChild(el);
   msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -455,6 +481,7 @@ async function _send(label, extra, notifyToSlack) {
     stage:           extra.stage          || '',
     hope:            extra.hope           || '',
     email:           extra.email          || '',
+    guided:          user.guided.join(' ／ '),
   };
   try {
     await fetch(CFG.WEBHOOK, {
@@ -465,6 +492,14 @@ async function _send(label, extra, notifyToSlack) {
   } catch (e) { console.error('通知エラー:', e); }
 }
 
+// 通知に載せる項目一式（どの終わり方でも同じ項目を送る）
+function fullExtra(more = {}) {
+  return Object.assign({
+    business: user.business, issue: user.issue, freeword: user.freeword,
+    stage: user.stage, hope: user.hope,
+  }, more);
+}
+
 // ─── 任意のメールアドレス（希望なし・ルートC終了）───
 async function askOptionalEmail(endLabel) {
   user.endLabel = endLabel;
@@ -473,6 +508,23 @@ async function askOptionalEmail(endLabel) {
   addMsg('ありがとうございます。\nコエルワの活動をまとめたアニュアルレポートをお送りいたしますので、よろしければメールアドレスを教えてください。');
   enableInput('例：taro@example.com');
   showQR([CFG.SKIP_EMAIL]);
+}
+
+// ─── よくある質問の一覧を出す ───
+async function showFaqList() {
+  step = 'faq';
+  typing(); await wait(600); rmTyping();
+  addMsg('よくいただくご質問です。気になるものをお選びください。');
+  showQR(CFG.FAQ.map(f => f.q).concat(['担当者に相談したい', '終わる']));
+}
+
+// ─── AI回答（テスト用）：質問を受け付ける ───
+async function startAiQuestion(again = false) {
+  step = 'ai_q';
+  typing(); await wait(600); rmTyping();
+  addMsg(again ? 'どうぞ、ご質問を入力してください。'
+    : 'ご質問を自由に入力してください。AIがコエルワの情報をもとにお答えします。\n（お名前や電話番号などの個人情報は入力しないでください）');
+  enableInput('ご質問を入力してください');
 }
 
 // ─── 起動 ───
@@ -520,6 +572,13 @@ async function onChoice(choice) {
       addMsg('ありがとうございます。コエルワとの連携を考えるにあたって、現在どのようなことをお考えでしょうか？');
       const issues = CFG.ISSUES[user.affiliationType] || ['その他'];
       showQR(issues);
+    } else if (choice.startsWith('E.')) {
+      user.route = 'E（AIテスト）';
+      await startAiQuestion();
+    } else if (choice.startsWith('F.')) {
+      user.route = 'F（よくある質問）';
+      recordOnly('Q3完了（よくある質問）');
+      await showFaqList(false);
     } else if (choice.startsWith('C.')) {
       user.route = 'C';
       step = 'rC_intro';
@@ -529,6 +588,7 @@ async function onChoice(choice) {
       addMsg('コエルワは、北海道を拠点に教育事業を行う会社です。\n\nミッションは「自分と社会の距離感を変える。」\n「自分には関係ない」と思っていた社会の選択肢が、「自分にもできるかもしれない」に変わる。そんな体験を、自治体・学校・企業のみなさまと一緒につくっています。\n\n「場」「学び」「挑戦」「まち」「組織」の5つをつくる事業として、まなび場、探究サポート、ミラスキ、企業研修などに取り組んでいます。');
       await wait(500);
       typing(); await wait(500); rmTyping();
+      addGuided('コエルワ紹介文とHPリンクを表示');
       addMsg(`コエルワの公式ウェブサイトでは、各事業の詳細や実績をご覧いただけます。\nぜひあわせてご覧ください。\n🔗 ${CFG.HP_URL}`);
       await wait(600);
       typing(); await wait(600); rmTyping();
@@ -536,6 +596,7 @@ async function onChoice(choice) {
       showQR([
         'A. 気になっている事業・プログラムが具体的にある',
         'B. 詳しくはわからないが、一緒にできることを探したい',
+        CFG.FAQ_OPTION,
         'D. ありがとうございました、これで終わります',
       ]);
       step = 'rC_reselect';
@@ -561,6 +622,10 @@ async function onChoice(choice) {
       addMsg('ありがとうございます。コエルワとの連携を考えるにあたって、現在どのようなことをお考えでしょうか？');
       const issues = CFG.ISSUES[user.affiliationType] || ['その他'];
       showQR(issues);
+    } else if (choice.startsWith('F.')) {
+      user.route = 'C→F（よくある質問）';
+      recordOnly('Q3完了（よくある質問）');
+      await showFaqList();
     } else if (choice.startsWith('D.')) {
       recordOnly('ルートC D選択');
       await askOptionalEmail('ルートC完了（D選択・終了）');
@@ -575,12 +640,18 @@ async function onChoice(choice) {
     step = 'rA_q5';
     recordOnly('ルートA Q4完了（事業選択）', { business: choice });
     typing(); await wait(700); rmTyping();
-    // 事業ページカードを表示
-    if (bizObj && bizObj.url) {
-      addPageCard(bizObj);
+    // 事業の説明（desc を設定した事業だけ）と、事業ページへのリンクカード
+    if (bizObj && bizObj.desc) {
+      addMsg(bizObj.desc);
+      addGuided(`「${bizObj.name}」の説明を表示`);
+      await wait(400);
+    }
+    if (bizObj && choice !== 'その他') {
+      addPageCard(bizObj); // URLが未設定なら公式サイトのトップへ
+      addGuided(`事業ページカード「${bizObj.name}」を表示`);
     }
     await wait(300);
-    if (bizObj && bizObj.url) {
+    if (bizObj && choice !== 'その他') {
       addMsg(`「${choice}」の詳細はカードからご覧いただけます。\n現在、どの程度ご検討されていますか？`);
     } else if (choice === 'その他') {
       addMsg('ありがとうございます。現在、どの程度ご検討されていますか？');
@@ -602,6 +673,47 @@ async function onChoice(choice) {
     return;
   }
 
+  // ── よくある質問 ──
+  if (step === 'faq') {
+    const item = CFG.FAQ.find(f => f.q === choice);
+    if (item) {
+      typing(); await wait(600); rmTyping();
+      addMsg(item.a);
+      addGuided(`よくある質問「${item.q}」に回答`);
+      user.faqSeen = (user.faqSeen || []).concat(item.q);
+      await wait(400);
+      addMsg('ほかに気になることはありますか？');
+      const rest = CFG.FAQ.filter(f => !user.faqSeen.includes(f.q)).map(f => f.q);
+      showQR(rest.concat(['担当者に相談したい', '終わる']));
+      return;
+    }
+    if (choice === '担当者に相談したい') {
+      notifySlack('よくある質問→相談希望', fullExtra({ freeword: 'よくある質問を見た：' + (user.faqSeen || []).join('／') }));
+      step = 'rA_q5';
+      typing(); await wait(600); rmTyping();
+      addMsg('ありがとうございます。現在、どの程度ご検討されていますか？');
+      showQR(CFG.STAGES);
+    } else {
+      await askOptionalEmail('よくある質問を見て終了');
+    }
+    return;
+  }
+
+  // ── AI回答のあと ──
+  if (step === 'ai_next') {
+    if (choice === 'もう1つ質問する') {
+      await startAiQuestion(true);
+    } else if (choice === '担当者に相談したい') {
+      step = 'rA_q5';
+      typing(); await wait(600); rmTyping();
+      addMsg('ありがとうございます。現在、どの程度ご検討されていますか？');
+      showQR(CFG.STAGES);
+    } else {
+      await askOptionalEmail('AI質問完了（終了）');
+    }
+    return;
+  }
+
   // ── Q5: 検討状況（A・B共通） ──
   if (step === 'rA_q5') {
     user.stage = choice;
@@ -617,6 +729,7 @@ async function onChoice(choice) {
       msg = 'ありがとうございます。ぜひお力になりたいと思います。よろしければ、今後のご希望をお聞かせいただけますか？';
     }
     addMsg(msg);
+    addGuided(`検討状況（${choice}）に応じた一言を返答`);
     showQR(CFG.HOPES);
     return;
   }
@@ -625,7 +738,7 @@ async function onChoice(choice) {
   if (step === 'opt_email' && choice === CFG.SKIP_EMAIL) {
     step = 'done';
     disableInput();
-    notifySlack(user.endLabel, { stage: user.stage, hope: user.hope });
+    notifySlack(user.endLabel, fullExtra());
     typing(); await wait(600); rmTyping();
     const name = getFirstName();
     addMsg(`${name}様、ありがとうございました。\nまたいつでもお気軽にお問い合わせください。コエルワのウェブサイトも引き続きご覧いただけますと幸いです。`);
@@ -669,11 +782,45 @@ async function send() {
     const name = getFirstName();
     typing(); await wait(700); rmTyping();
     addMsg(`${name}様、ありがとうございます。\nコエルワへのご関心に近いものをお選びください。`);
-    showQR([
+    const q3 = [
       'A. 気になっている事業・プログラムが具体的にある',
       'B. 詳しくはわからないが、一緒にできることを探したい',
       'C. コエルワの事業をまだよく知らないので、まず知りたい',
-    ]);
+    ];
+    q3.push(CFG.FAQ_OPTION);
+    if (CFG.AI_TEST) q3.push(CFG.AI_OPTION);
+    showQR(q3);
+    return;
+  }
+
+  // ── AI回答（テスト用）：質問の入力 ──
+  if (step === 'ai_q') {
+    disableInput();
+    step = 'ai_wait';
+    user.freeword = (user.freeword ? user.freeword + ' ／ ' : '') + text;
+    typing();
+    let answer = '';
+    try {
+      const res = await fetch(CFG.WEBHOOK + '/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: text }),
+      });
+      const json = await res.json().catch(() => ({}));
+      answer = res.ok && json.answer ? json.answer
+        : json.error === 'rate' ? '短い時間にご質問が続いたため、少し時間をおいてからお試しください。'
+        : '申し訳ありません、うまくお答えできませんでした。担当者から改めてご案内いたします。';
+    } catch (e) {
+      answer = '申し訳ありません、うまくお答えできませんでした。担当者から改めてご案内いたします。';
+    }
+    rmTyping();
+    addMsg(answer);
+    addGuided(`AI回答（質問：${text.slice(0, 40)}）：${answer.slice(0, 150)}`);
+    notifySlack('AI質問（テスト）', { freeword: user.freeword });
+    await wait(400);
+    addMsg('ほかにも気になることはありますか？');
+    step = 'ai_next';
+    showQR(['もう1つ質問する', '担当者に相談したい', '終わる']);
     return;
   }
 
@@ -681,7 +828,9 @@ async function send() {
   if (step === 'rB_free') {
     user.freeword = text;
     step = 'rA_q5'; // Q5へ（B・A共通）
-    recordOnly('ルートB フリーワード完了', { issue: user.issue, freeword: text });
+    // 自由記述が入った時点でSlackに通知（途中で離脱しても質問が届くように）
+    addGuided('自由記述を受け付け、担当者が確認する旨を案内');
+    notifySlack('ルートB フリーワード完了', { issue: user.issue, freeword: text });
     disableInput();
     typing(); await wait(800); rmTyping();
     // TODO: 課題×事業対応表に基づく事業カード表示（現在はプレースホルダー）
@@ -704,10 +853,9 @@ async function send() {
     step = 'done';
     qrEl.innerHTML = '';
     disableInput();
-    notifySlack('完了（メールアドレス取得）', {
-      business: user.business, issue: user.issue, freeword: user.freeword,
-      stage: user.stage, hope: user.hope, email: text,
-    });
+    // 希望なし・ルートC終了の人が任意でメールを入れたときは、優先度を「中」にする
+    addGuided('アニュアルレポートをメールで送付');
+    notifySlack('完了（任意でメールアドレス取得）', fullExtra({ email: text }));
     typing(); await wait(700); rmTyping();
     const name = getFirstName();
     addMsg(`${name}様、ありがとうございました。\nご入力いただいたメールアドレスに、アニュアルレポートをお送りいたします。またいつでもお気軽にお問い合わせください。`);
@@ -724,14 +872,8 @@ async function send() {
     user.email = text;
     step = 'done';
     disableInput();
-    notifySlack('完了（メールアドレス取得）', {
-      business:  user.business,
-      issue:     user.issue,
-      freeword:  user.freeword,
-      stage:     user.stage,
-      hope:      user.hope,
-      email:     text,
-    });
+    addGuided('アニュアルレポートをメールで送付');
+    notifySlack('完了（メールアドレス取得）', fullExtra({ email: text }));
     typing(); await wait(700); rmTyping();
     const name = getFirstName();
     addMsg(`${name}様、ありがとうございました。\nご入力いただいた内容を確認のうえ、担当者より順次ご連絡いたします。引き続きコエルワのウェブサイトもぜひご覧ください。`);
