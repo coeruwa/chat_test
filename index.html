@@ -107,6 +107,7 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 .msg.bot  { background: #fff; color: #111; border: 1px solid #ece8e0; align-self: flex-start; border-bottom-left-radius: 4px; }
+.msg.bot a { color: #E8701A; text-decoration: underline; word-break: break-all; }
 .msg.user { background: #111; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
 
 /* タイピング */
@@ -432,10 +433,27 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 function addMsg(text, type = 'bot') {
   const el = document.createElement('div');
   el.className = `msg ${type}`;
-  el.textContent = text;
+  if (type === 'bot') appendLinked(el, text); // URLはクリックで開けるリンクにする
+  else el.textContent = text;
   msgsEl.appendChild(el);
   msgsEl.scrollTop = msgsEl.scrollHeight;
   return el;
+}
+
+// 文章の中の https:// のURLを、新しいタブで開くリンクにする（それ以外の文字はそのまま文字として入れる）
+function appendLinked(el, text) {
+  const re = /https:\/\/[A-Za-z0-9\-._~:/?#@!$&'*+,;=%]+/g;
+  let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    let url = m[0].replace(/[.,;:!?)]+$/, ''); // 文末の記号はURLに含めない
+    el.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const a = document.createElement('a');
+    a.href = url; a.textContent = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    el.appendChild(a);
+    last = m.index + url.length;
+    re.lastIndex = last;
+  }
+  el.appendChild(document.createTextNode(text.slice(last)));
 }
 
 // 事業名から事業の設定（説明・URL）を探す
