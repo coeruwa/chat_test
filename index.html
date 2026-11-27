@@ -201,7 +201,7 @@ body {
 </head>
 <body>
 
-<div id="badge">1</div>
+<div id="badge" class="hidden">1</div>
 
 <button id="chat-trigger" aria-label="チャットを開く">
   <svg class="ic ic-chat" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -242,32 +242,44 @@ const CFG = {
   WEBHOOK:  'https://fancy-snowflake-ffe9.coeruwa-all.workers.dev',
   BOT_NAME: 'コエルワ お問い合わせ',
   HP_URL:   'https://coeruwa.com',
+  PROJECTS_URL: 'https://coeruwa.com/top#projects', // 事業ページがない事業のカードのリンク先
 
   // Q1 所属種類
   AFFILIATION_TYPES: ['企業・団体', '自治体・教育委員会', '学校'],
 
   // Q4 ルートA 事業選択（所属別）
-  //   url に事業ページのURLを入れるとカードが出る（null のときはカードなし）
+  //   url：事業ページのURL（null のときは、カードはホームページのPROJECTSの欄へ）
+  //   desc：事業を選んだときに出す説明文（なければ出さない）
   BUSINESSES: {
     '企業・団体': [
-      { name: '企業向け研修・合宿設計', url: null },
-      { name: '講演・講義',             url: null },
-      { name: 'ミラスキ',               url: null },
+      { name: '企業向け研修・合宿設計', url: 'https://coeruwa.com/project3#p3-3',
+        desc: '企業のみなさま向けに、教育や地域をテーマにした研修・合宿を企画・運営しています。' },
+      { name: '講演・講義',             url: 'https://coeruwa.com/project2#p2-9',
+        desc: 'イベントや団体向けの講演・講義を行っています。' },
+      { name: 'ミラスキ',               url: 'https://coeruwa.com/project1#p1-4',
+        desc: '高校生がチームでビジネスプランを考え、実際に挑戦するアントレプレナーシップ教育プログラムです。' },
       { name: 'その他',                 url: null },
     ],
     '自治体・教育委員会': [
-      { name: 'まなび場',                       url: null },
-      { name: '放課後支援',                     url: null },
-      { name: '学校・自治体向け研修',           url: null },
+      { name: 'まなび場',                       url: 'https://coeruwa.com/project1',
+        desc: '主に北海道の小さなまちで、長期休暇に大学生が地域に入り、中高生の学びや進路を一緒に考える場をつくる事業です。' },
+      { name: '放課後支援',                     url: 'https://coeruwa.com/project1#p1-3',
+        desc: 'オンラインで、放課後の学習をサポートする「オンライン学習室」を行っています。' },
+      { name: '学校・自治体向け研修',           url: 'https://coeruwa.com/project1#p1-5',
+        desc: '学校や自治体の職員のみなさま向けの研修を行っています。' },
       { name: '次世代教育コーディネート事業',   url: null },
       { name: 'こどもの意見反映推進事業',       url: null },
       { name: 'その他',                         url: null },
     ],
     '学校': [
-      { name: '探究サポート',                   url: null },
-      { name: '学校向け起業家育成事業',         url: null },
-      { name: 'ミラスキ',                       url: null },
-      { name: '講演・出前授業',                 url: null },
+      { name: '探究サポート',                   url: 'https://coeruwa.com/project2#p2-5',
+        desc: '学校の探究学習の授業づくりや、授業の実施をサポートしています。' },
+      { name: '学校向け起業家育成事業',         url: 'https://coeruwa.com/project2#p2-4',
+        desc: '学校の授業として、アントレプレナーシップ（起業家精神）を学ぶプログラムを導入しています。' },
+      { name: 'ミラスキ',                       url: 'https://coeruwa.com/project1#p1-4',
+        desc: '高校生がチームでビジネスプランを考え、実際に挑戦するアントレプレナーシップ教育プログラムです。' },
+      { name: '講演・出前授業',                 url: 'https://coeruwa.com/project2#p2-8',
+        desc: '中学校・高校で、キャリアや地域をテーマにした講演・出前授業を行っています。' },
       { name: '次世代教育コーディネート事業',   url: null },
       { name: 'こどもの意見反映推進事業',       url: null },
       { name: 'その他',                         url: null },
@@ -296,6 +308,23 @@ const CFG = {
       'その他',
     ],
   },
+
+  // ルートB：課題ごとに案内する事業（BUSINESSES の name と同じ名前で書く。「その他」は案内しない）
+  ISSUE_TO_BUSINESS: {
+    '子どもが地域の外の大人や大学生と出会う機会をつくりたい': 'まなび場',
+    '学習塾が少なく、子どもの学習環境に課題がある': '放課後支援',
+    '地域の教育環境を改善したいが、人手・ノウハウが足りない': '次世代教育コーディネート事業',
+    '探究・キャリア教育の授業をどう設計すればいいかわからない': '探究サポート',
+    '外部の専門家・企業と連携した授業をやってみたい': '講演・出前授業',
+    '起業家教育・アントレプレナーシップ教育を取り入れたい': '学校向け起業家育成事業',
+    '地域や教育との接点をつくりたいが、方法がわからない': 'ミラスキ',
+    '社員の研修・人材育成を充実させたい': '企業向け研修・合宿設計',
+    '講演・登壇を依頼したい': '講演・講義',
+    '高校生の起業家教育に関わりたい': '学校向け起業家育成事業',
+  },
+
+  // 終わったあとに出す「最初から」ボタン
+  RESTART: '最初からもう一度見る',
 
   // Q5 検討状況
   STAGES: [
@@ -403,16 +432,40 @@ function addMsg(text, type = 'bot') {
   return el;
 }
 
+// 事業名から事業の設定（説明・URL）を探す
+function findBusiness(name) {
+  for (const list of Object.values(CFG.BUSINESSES)) {
+    const b = list.find(x => x.name === name);
+    if (b) return b;
+  }
+  return { name, url: null };
+}
+
+// 終わったあとに「最初からもう一度見る」ボタンを出す
+function showRestart() {
+  disableInput();
+  showQR([CFG.RESTART]);
+}
+
+// 最初からやり直す（ページを更新しなくても、もう一度確認できるように）
+async function restart() {
+  qrEl.innerHTML = '';
+  msgsEl.innerHTML = '';
+  user = { sessionId: crypto.randomUUID(), guided: [] };
+  step = 'q1';
+  await boot();
+}
+
 function addPageCard(business) {
   const el = document.createElement('a');
   el.className = 'page-card';
-  el.href = business.url || CFG.HP_URL;
+  el.href = business.url || CFG.PROJECTS_URL;
   el.target = '_blank';
   el.rel = 'noopener noreferrer';
   el.innerHTML = `
-    <div class="card-label">📄 ${business.url ? '詳細ページ' : '公式サイト'}</div>
+    <div class="card-label">📄 ${business.url ? '詳細ページ' : '事業一覧'}</div>
     <div class="card-title">${business.name}</div>
-    <div class="card-arrow">${business.url ? '詳しく見る' : '公式サイトで見る'} →</div>
+    <div class="card-arrow">${business.url ? '詳しく見る' : 'コエルワの事業一覧を見る'} →</div>
   `;
   msgsEl.appendChild(el);
   msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -540,6 +593,7 @@ async function boot() {
 
 // ─── ボタン選択ハンドラ ───
 async function onChoice(choice) {
+  if (choice === CFG.RESTART) { await restart(); return; }
   addMsg(choice, 'user');
 
   // ── Q1: 所属種類 ──
@@ -742,6 +796,7 @@ async function onChoice(choice) {
     typing(); await wait(600); rmTyping();
     const name = getFirstName();
     addMsg(`${name}様、ありがとうございました。\nまたいつでもお気軽にお問い合わせください。コエルワのウェブサイトも引き続きご覧いただけますと幸いです。`);
+    showRestart();
     return;
   }
 
@@ -757,7 +812,9 @@ async function onChoice(choice) {
       step = 'rA_q7';
       recordOnly('Q6完了（ご希望あり）', { stage: user.stage, hope: choice });
       typing(); await wait(700); rmTyping();
-      addMsg('ありがとうございます。ご連絡先のメールアドレスを教えていただけますか？\n（コエルワの活動をまとめたアニュアルレポートもあわせてお送りいたします）');
+      addMsg(choice.startsWith('まずは資料')
+        ? 'ありがとうございます。アニュアルレポートをお送りしますので、メールアドレスを教えていただけますか？'
+        : 'ありがとうございます。担当者からご連絡しますので、ご連絡先のメールアドレスを教えていただけますか？\n（コエルワの活動をまとめたアニュアルレポートもあわせてお送りいたします）');
       enableInput('例：taro@example.com');
     }
     return;
@@ -829,12 +886,25 @@ async function send() {
     user.freeword = text;
     step = 'rA_q5'; // Q5へ（B・A共通）
     // 自由記述が入った時点でSlackに通知（途中で離脱しても質問が届くように）
-    addGuided('自由記述を受け付け、担当者が確認する旨を案内');
-    notifySlack('ルートB フリーワード完了', { issue: user.issue, freeword: text });
     disableInput();
     typing(); await wait(800); rmTyping();
-    // TODO: 課題×事業対応表に基づく事業カード表示（現在はプレースホルダー）
-    addMsg('ありがとうございます。いただいた内容は、担当者が確認いたします。');
+    const bizName = CFG.ISSUE_TO_BUSINESS[user.issue];
+    if (bizName) {
+      // 課題に合う事業を案内する
+      const biz = findBusiness(bizName);
+      addMsg(`ありがとうございます。お考えの内容には、「${bizName}」がお役に立てるかもしれません。`);
+      if (biz.desc) { await wait(400); addMsg(biz.desc); }
+      await wait(300);
+      addPageCard(biz);
+      addGuided(`課題に合う事業として「${bizName}」を案内`);
+      await wait(400);
+      addMsg('いただいた内容は担当者も確認し、より合うご提案があればお伝えします。');
+    } else {
+      addGuided('自由記述を受け付け、担当者が確認する旨を案内');
+      addMsg('ありがとうございます。いただいた内容は担当者が確認し、お考えに合うご提案をお伝えします。');
+    }
+    // 自由記述が入った時点でSlackに通知（途中で離脱しても質問が届くように）
+    notifySlack('ルートB フリーワード完了', { issue: user.issue, freeword: text });
     await wait(400);
     addMsg('現在、どの程度ご検討されていますか？');
     showQR(CFG.STAGES);
@@ -858,7 +928,8 @@ async function send() {
     notifySlack('完了（任意でメールアドレス取得）', fullExtra({ email: text }));
     typing(); await wait(700); rmTyping();
     const name = getFirstName();
-    addMsg(`${name}様、ありがとうございました。\nご入力いただいたメールアドレスに、アニュアルレポートをお送りいたします。またいつでもお気軽にお問い合わせください。`);
+    addMsg(`${name}様、ありがとうございました。\nご入力いただいたメールアドレスに、アニュアルレポートをお送りしました。またいつでもお気軽にお問い合わせください。`);
+    showRestart();
     return;
   }
 
@@ -876,7 +947,12 @@ async function send() {
     notifySlack('完了（メールアドレス取得）', fullExtra({ email: text }));
     typing(); await wait(700); rmTyping();
     const name = getFirstName();
-    addMsg(`${name}様、ありがとうございました。\nご入力いただいた内容を確認のうえ、担当者より順次ご連絡いたします。引き続きコエルワのウェブサイトもぜひご覧ください。`);
+    if (String(user.hope).startsWith('まずは資料')) {
+      addMsg(`${name}様、ありがとうございました。\nご入力いただいたメールアドレスに、アニュアルレポートをお送りしました。内容をご覧いただき、気になる事業があればお気軽にご相談ください。`);
+    } else {
+      addMsg(`${name}様、ありがとうございました。\n担当者より、ご入力いただいたメールアドレスに改めてご連絡いたします。あわせてアニュアルレポートもお送りしましたので、ご覧ください。`);
+    }
+    showRestart();
     return;
   }
 }
